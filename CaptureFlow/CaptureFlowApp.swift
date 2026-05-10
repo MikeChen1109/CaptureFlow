@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct CaptureFlowApp: App {
+    private let container = AppContainer.prototype()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(container: container)
         }
     }
 }

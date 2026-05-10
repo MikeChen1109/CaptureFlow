@@ -1,0 +1,4 @@
+buildServer.json
+DerivedData/
+*.xcuserstate
+xcuserdata/
