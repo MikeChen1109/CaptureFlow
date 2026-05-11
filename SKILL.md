@@ -15,7 +15,8 @@ Users should be able to:
 - Start from Home with `New Card`
 - Add an image from camera or photo import
 - Choose a card type: Auto, Reminder, Calendar, Note, Shopping, Job
-- Analyze with local mock services
+- Analyze with local mock vision services
+- Generate card content with on-device Foundation Models when available, with mock fallback
 - Review and edit the generated card
 - Save to local Inbox
 - Create mock Reminder or Calendar actions
@@ -37,7 +38,7 @@ Do not add these without explicit approval:
 - Real cloud sync
 - Real production credit system
 
-Keep the mock/local flow working even if future real implementations are added.
+Keep the local and mock fallback flow working even if future real implementations are added.
 
 ## Architecture Expectations
 
@@ -48,7 +49,7 @@ CaptureFlow/
   App/              Dependency container and app routes
   DesignSystem/     Shared visual language and reusable UI primitives
   Domain/           Pure Codable models and Markdown export
-  Services/         Protocols, service models, mock implementations
+  Services/         Protocols, service models, mock implementations, FoundationModels generator
   Repositories/     CardRepository and local persistence implementations
   Features/         User-facing workflows and view models
 ```
@@ -75,7 +76,8 @@ Existing service boundaries:
 Current prototype implementations:
 
 - `MockVisionAnalyzer`
-- `MockCardGenerator`
+- `AppleFoundationCardGenerator` on iOS 26+ when Foundation Models is available
+- `MockCardGenerator` fallback for unsupported or unavailable Foundation Models cases
 - `InMemoryCardRepository`
 - `MockReminderCreator`
 - `MockCalendarCreator`
@@ -84,7 +86,6 @@ Current prototype implementations:
 Future implementation targets:
 
 - `CloudVisionAnalyzer`
-- `AppleFoundationCardGenerator`
 - `SwiftDataCardRepository`
 - EventKit-backed reminder/calendar creators
 - RevenueCat plus backend-backed credit provider
@@ -120,6 +121,7 @@ Use existing design system components whenever possible:
 - Keep async work behind services/repositories.
 - Use Swift Concurrency.
 - Preserve Codable and Sendable where already used.
+- Keep `FoundationModels` import and iOS availability checks guarded.
 - Avoid adding broad abstractions until there is real duplication or a clear replacement point.
 - Do not rewrite unrelated files or reformat the project globally.
 
@@ -137,7 +139,7 @@ An AppIntents metadata warning is currently expected and not relevant unless App
 
 Good next steps for future agents:
 
-- Add focused unit tests for domain Markdown export and mock card generation.
+- Add focused unit tests for domain Markdown export and card generation flows.
 - Replace in-memory repository with `SwiftDataCardRepository` behind `CardRepository`.
 - Add real EventKit implementations behind `ReminderCreating` and `CalendarCreating`.
 - Improve card editing UX with type-specific form components.
@@ -145,4 +147,4 @@ Good next steps for future agents:
 
 ## Agent Prompt
 
-When continuing development, act as a senior iOS architect and product-minded mobile engineer. Prioritize fast prototype validation, clean replacement points, and UI consistency. Read the existing modules before editing. Keep real service integrations out of scope unless the user explicitly asks for them. Preserve the local mock path as the default development flow.
+When continuing development, act as a senior iOS architect and product-minded mobile engineer. Prioritize fast prototype validation, clean replacement points, and UI consistency. Read the existing modules before editing. Keep real service integrations out of scope unless the user explicitly asks. Preserve the local fallback path as the default development flow.

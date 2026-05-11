@@ -2,15 +2,15 @@
 
 CaptureFlow is a local-first iOS prototype for a Vision-to-Action workflow. The app lets a user add an image, simulate image understanding, generate an editable action card, and save or export the result.
 
-This repository currently focuses on validating product flow and UI feel. It does not connect to a real backend, OpenAI, Firebase, RevenueCat, or a real credits system.
+This repository focuses on validating product flow and UI feel. It does not connect to a real backend, OpenAI, Firebase, RevenueCat, or a real credits system.
 
 ## Current Prototype Scope
 
 - SwiftUI app with dark mode first UI
-- Local mock analysis flow
+- Local mock image analysis flow (`MockVisionAnalyzer`)
 - Photo import and camera capture entry points
-- Mock card generation for Reminder, Calendar, Note, Shopping, and Job cards
-- Editable card result screen
+- Card generation pipeline that prefers Apple Foundation Models on iOS 26+ and falls back to mock generation
+- Editable card result screen with streamed summary and generated sections
 - Local in-memory inbox
 - Markdown export
 - Mock Reminder and Calendar creation services
@@ -24,13 +24,14 @@ This repository currently focuses on validating product flow and UI feel. It doe
 4. User selects a card type or Auto.
 5. User taps Analyze.
 6. `MockVisionAnalyzer` creates a `VisionUnderstandingContext`.
-7. `MockCardGenerator` creates an `ActionCard`.
-8. User edits the generated fields.
-9. User can save, create mock Reminder/Calendar actions, copy Markdown, archive, or delete.
+7. `CardResultGenerationView` streams partial summary and builds card content using `CardGenerating`.
+8. `AppContainer` uses `AppleFoundationCardGenerator` on supported devices and falls back to `MockCardGenerator` when unavailable.
+9. User edits the generated fields.
+10. User can save, create mock Reminder/Calendar actions, copy Markdown, archive, or delete.
 
 ## Architecture
 
-CaptureFlow uses a lightweight MVVM structure with protocol-oriented services. The current implementations are mock/local, but the protocol boundaries are designed so real services can replace them later.
+CaptureFlow uses a lightweight MVVM structure with protocol-oriented services. The current implementations are local-first and mock-safe, while keeping replacement boundaries for future integrations.
 
 ```text
 CaptureFlow/
@@ -51,11 +52,13 @@ CaptureFlow/
     Protocols/
     Models/
     Mock/
+    FoundationModels/
 
   Repositories/
 
   Features/
     Home/
+    NewCardFlow/
     Capture/
     Analysis/
     CardResult/
@@ -66,7 +69,7 @@ CaptureFlow/
 ## Module Responsibilities
 
 `App`
-: Dependency composition and navigation route definitions. `AppContainer.prototype()` wires all mock services.
+: Dependency composition and navigation route definitions. `AppContainer.prototype()` wires local services and chooses card generator based on runtime availability.
 
 `DesignSystem`
 : Shared colors, typography, spacing, rounded card containers, buttons, badges, empty states, loading steps, and image preview components.
@@ -75,7 +78,7 @@ CaptureFlow/
 : Pure app models and export logic. This layer should not import SwiftUI, UIKit, network SDKs, EventKit, Firebase, RevenueCat, or OpenAI SDKs.
 
 `Services`
-: Protocols and mock service implementations for vision analysis, card generation, credits, reminder creation, and calendar creation.
+: Protocols and service implementations for vision analysis, card generation, credits, reminder creation, and calendar creation.
 
 `Repositories`
 : Local card persistence boundary. The prototype uses `InMemoryCardRepository`; SwiftData can replace it later behind the same `CardRepository` protocol.
@@ -95,7 +98,8 @@ CaptureFlow/
 Current implementations:
 
 - `MockVisionAnalyzer`
-- `MockCardGenerator`
+- `AppleFoundationCardGenerator` (iOS 26+, `FoundationModels` available)
+- `MockCardGenerator` (fallback path)
 - `InMemoryCardRepository`
 - `MockReminderCreator`
 - `MockCalendarCreator`
@@ -104,9 +108,8 @@ Current implementations:
 Future replacements:
 
 - `MockVisionAnalyzer` -> `CloudVisionAnalyzer`
-- `MockCardGenerator` -> `AppleFoundationCardGenerator`
-- `MockCreditProvider` -> `RevenueCat + backend credit provider`
 - `InMemoryCardRepository` -> `SwiftDataCardRepository`
+- `MockCreditProvider` -> `RevenueCat + backend credit provider`
 - Mock external action services -> EventKit-backed services
 
 ## Design Direction
@@ -155,4 +158,4 @@ Do not add these in the local prototype unless the scope explicitly changes:
 - Prefer existing design system components before adding new UI primitives.
 - Keep domain models pure and Codable.
 - Add real services behind existing protocols instead of changing feature screens directly.
-- Preserve the local prototype path even when adding real integrations later.
+- Preserve the local mock-safe fallback path even when adding more capable generators.

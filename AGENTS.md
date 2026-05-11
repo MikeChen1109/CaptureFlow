@@ -12,8 +12,8 @@ The prototype flow is:
 2. `New Card`
 3. Add image from camera or photo import
 4. Select card type
-5. Analyze with local mock services
-6. Generate an editable `ActionCard`
+5. Analyze with local mock vision service
+6. Generate an editable `ActionCard` with on-device Foundation Models when available (fallback to mock)
 7. Save to local Inbox, create mock Reminder/Calendar actions, copy Markdown, archive, or delete
 
 ## Current Scope
@@ -40,7 +40,7 @@ CaptureFlow/
   App/              AppContainer and AppRoute
   DesignSystem/     Reusable UI components and visual tokens
   Domain/           Pure Codable models and Markdown export
-  Services/         Protocols, service models, mock implementations
+  Services/         Protocols, service models, mock implementations, FoundationModels generator
   Repositories/     Local card repository boundary
   Features/         SwiftUI workflows and view models
 ```
@@ -79,7 +79,8 @@ Keep these protocols as the main integration boundaries:
 Current prototype implementations:
 
 - `MockVisionAnalyzer`
-- `MockCardGenerator`
+- `AppleFoundationCardGenerator` on iOS 26+ when Foundation Models is available
+- `MockCardGenerator` fallback when Foundation Models is unavailable
 - `InMemoryCardRepository`
 - `MockReminderCreator`
 - `MockCalendarCreator`
@@ -111,7 +112,8 @@ Use existing components first:
 ## Development Rules
 
 - Keep changes scoped to the user's request.
-- Preserve the local mock flow as the default path.
+- Preserve the local mock flow as the default fallback path.
+- Do not remove `#if canImport(FoundationModels)` and availability guards around Foundation Models integration.
 - Do not introduce real service SDKs without explicit instruction.
 - Keep domain models Codable and testable.
 - Use Swift Concurrency for async service/repository work.
