@@ -2,38 +2,47 @@ import SwiftUI
 
 struct HomeView: View {
     @StateObject private var viewModel: HomeViewModel
+    private let refreshTrigger: UUID
     private let onCreateCard: () -> Void
     private let onSelectCard: (ActionCard) -> Void
     private let onOpenSettings: () -> Void
 
     init(
         viewModel: HomeViewModel,
+        refreshTrigger: UUID = UUID(),
         onCreateCard: @escaping () -> Void = {},
         onSelectCard: @escaping (ActionCard) -> Void = { _ in },
         onOpenSettings: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.refreshTrigger = refreshTrigger
         self.onCreateCard = onCreateCard
         self.onSelectCard = onSelectCard
         self.onOpenSettings = onOpenSettings
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
-                header
-                actionButtons
-                content
+        VStack(spacing: 0) {
+            navigationHeader
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
+                    intro
+                    errorBanner
+                    actionButtons
+                    content
+                }
+                .padding(.horizontal, CFSpacing.large)
+                .padding(.top, CFSpacing.medium)
+                .padding(.bottom, CFSpacing.xLarge)
             }
-            .padding(.horizontal, CFSpacing.large)
-            .padding(.vertical, CFSpacing.xLarge)
         }
         .background(CFColors.background.ignoresSafeArea())
-        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .task {
-            await viewModel.load()
+            await viewModel.loadIfNeeded()
         }
-        .onAppear {
+        .onChange(of: refreshTrigger) { _, _ in
             Task {
                 await viewModel.refresh()
             }
@@ -44,36 +53,43 @@ struct HomeView: View {
         .tint(CFColors.primaryOrange)
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: CFSpacing.large) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
-                    Text("CaptureFlow")
-                        .font(CFTypography.largeTitle)
-                        .foregroundStyle(CFColors.textPrimary)
+    private var navigationHeader: some View {
+        HStack(alignment: .center, spacing: CFSpacing.medium) {
+            Text("CaptureFlow")
+                .font(CFTypography.largeTitle)
+                .foregroundStyle(CFColors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
 
-                    Text("Turn captured context into action cards.")
-                        .font(CFTypography.callout)
-                        .foregroundStyle(CFColors.textSecondary)
-                }
+            Spacer(minLength: CFSpacing.medium)
 
-                Spacer()
-
-                HStack(spacing: CFSpacing.small) {
-                    creditsBadge
-                    settingsButton
-                }
+            HStack(spacing: CFSpacing.small) {
+                creditsBadge
+                settingsButton
             }
+        }
+        .padding(.horizontal, CFSpacing.large)
+        .padding(.top, CFSpacing.medium)
+        .padding(.bottom, CFSpacing.large)
+        .background(CFColors.background)
+    }
 
-            if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(CFTypography.callout)
-                    .foregroundStyle(CFColors.destructive)
-                    .padding(CFSpacing.medium)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(CFColors.destructive.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
-            }
+    private var intro: some View {
+        Text("Turn captured context into action cards.")
+            .font(CFTypography.callout)
+            .foregroundStyle(CFColors.textSecondary)
+    }
+
+    @ViewBuilder
+    private var errorBanner: some View {
+        if let errorMessage = viewModel.errorMessage {
+            Text(errorMessage)
+                .font(CFTypography.callout)
+                .foregroundStyle(CFColors.destructive)
+                .padding(CFSpacing.medium)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(CFColors.destructive.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
         }
     }
 
@@ -91,6 +107,7 @@ struct HomeView: View {
                 }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Settings")
     }
 
     private var creditsBadge: some View {

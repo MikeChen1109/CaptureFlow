@@ -23,7 +23,7 @@ This repository currently focuses on validating product flow and UI feel. It doe
 3. User adds an image with camera or photo import.
 4. User selects a card type or Auto.
 5. User taps Analyze.
-6. `MockVisionAnalyzer` creates a `MockCloudVisionContext`.
+6. `MockVisionAnalyzer` creates a `VisionUnderstandingContext`.
 7. `MockCardGenerator` creates an `ActionCard`.
 8. User edits the generated fields.
 9. User can save, create mock Reminder/Calendar actions, copy Markdown, archive, or delete.

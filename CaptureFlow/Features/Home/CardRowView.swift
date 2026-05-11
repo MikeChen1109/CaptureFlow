@@ -16,7 +16,11 @@ struct CardRowView: View {
 
                         Text(statusText)
                             .font(CFTypography.caption)
-                            .foregroundStyle(CFColors.textSecondary)
+                            .foregroundStyle(statusTint)
+                            .padding(.horizontal, CFSpacing.small)
+                            .frame(height: 22)
+                            .background(statusTint.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
                     }
 
                     Text(card.title)
@@ -64,5 +68,18 @@ struct CardRowView: View {
 
     private var statusText: String {
         card.status.rawValue.capitalized
+    }
+
+    private var statusTint: Color {
+        switch card.status {
+        case .pending:
+            CFColors.warning
+        case .saved:
+            CFColors.info
+        case .completed:
+            CFColors.success
+        case .archived:
+            CFColors.textSecondary
+        }
     }
 }

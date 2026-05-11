@@ -1,7 +1,34 @@
 import Foundation
 
 struct MockCardGenerator: CardGenerating {
-    func generateCard(from context: MockCloudVisionContext) async throws -> ActionCard {
+    func generateContent(from context: VisionUnderstandingContext) async throws -> GeneratedCardContent {
+        GeneratedCardContent.fallback(from: context)
+    }
+
+    func streamCard(from context: VisionUnderstandingContext) -> AsyncThrowingStream<CardGenerationEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let card = try await generateCard(from: context)
+                    let partial = card.generationPartial
+                    continuation.yield(.partial(CardGenerationPartial(title: partial.title, summary: nil)))
+                    try await Task.sleep(for: .milliseconds(420))
+                    continuation.yield(.partial(partial))
+                    try await Task.sleep(for: .milliseconds(320))
+                    continuation.yield(.completed(card))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    func generateCard(from context: VisionUnderstandingContext) async throws -> ActionCard {
         let metadata = CardMetadata(
             sourceImage: context.sourceImage,
             confidence: context.confidence,
@@ -46,7 +73,7 @@ struct MockCardGenerator: CardGenerating {
                         "Image import flow should be tested on device",
                         "Demo script should focus on vision-to-action speed"
                     ],
-                    todos: [
+                    items: [
                         "Polish onboarding",
                         "Test import flow",
                         "Prepare demo script"
@@ -61,7 +88,7 @@ struct MockCardGenerator: CardGenerating {
                     price: "NT$2,490",
                     merchant: "Mock Store",
                     offer: "Limited time discount",
-                    reminderDate: Self.date(year: 2026, month: 6, day: 12, hour: 10, minute: 0),
+                    date: Self.date(year: 2026, month: 6, day: 12, hour: 10, minute: 0),
                     notes: "Compare switch options before purchasing."
                 )
             )
@@ -73,9 +100,9 @@ struct MockCardGenerator: CardGenerating {
                     role: "iOS Engineer",
                     skills: ["SwiftUI", "iOS", "AI features"],
                     contact: "recruiting@capturelabs.example",
-                    nextAction: "Follow up recruiter",
-                    followUpDate: Self.date(year: 2026, month: 6, day: 16, hour: 9, minute: 0),
-                    notes: "Role appears aligned with product-minded iOS engineering and AI capture workflows."
+                    detail: "Application contact and role requirements were visible in the captured posting.",
+                    date: Self.date(year: 2026, month: 6, day: 16, hour: 9, minute: 0),
+                    notes: "Posting mentions product-minded iOS engineering and AI capture workflows."
                 )
             )
         }
@@ -99,4 +126,5 @@ struct MockCardGenerator: CardGenerating {
 
         return components.date ?? Date(timeIntervalSince1970: 0)
     }
+
 }

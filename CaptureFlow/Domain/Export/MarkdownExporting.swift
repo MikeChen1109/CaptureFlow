@@ -25,7 +25,7 @@ extension ReminderCard: MarkdownExporting {
     var markdown: String {
         MarkdownBuilder(title: title)
             .line("Type", "Reminder")
-            .line("Due", dueDate?.formattedForMarkdown)
+            .line("Date", dueDate?.formattedForMarkdown)
             .line("Location", location)
             .line("Priority", priority.rawValue.capitalized)
             .section("Notes", notes)
@@ -51,7 +51,7 @@ extension NoteCard: MarkdownExporting {
             .line("Type", "Note")
             .section("Summary", summary)
             .list("Key Points", bullets)
-            .checklist("Todos", todos)
+            .list("Items", items)
             .build()
     }
 }
@@ -63,7 +63,7 @@ extension ShoppingCard: MarkdownExporting {
             .line("Price", price)
             .line("Merchant", merchant)
             .line("Offer", offer)
-            .line("Reminder", reminderDate?.formattedForMarkdown)
+            .line("Date", date?.formattedForMarkdown)
             .section("Notes", notes)
             .build()
     }
@@ -77,8 +77,8 @@ extension JobCard: MarkdownExporting {
             .line("Role", role)
             .list("Skills", skills)
             .line("Contact", contact)
-            .line("Next Action", nextAction)
-            .line("Follow Up", followUpDate?.formattedForMarkdown)
+            .line("Detail", detail)
+            .line("Date", date?.formattedForMarkdown)
             .section("Notes", notes)
             .build()
     }

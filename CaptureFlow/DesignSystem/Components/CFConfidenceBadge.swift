@@ -45,11 +45,11 @@ struct CFConfidenceBadge: View {
     private var tint: Color {
         switch level {
         case .low:
-            CFColors.textSecondary
+            CFColors.warning
         case .medium:
-            CFColors.primaryOrange
+            CFColors.info
         case .high:
-            CFColors.orangeHighlight
+            CFColors.success
         }
     }
 }

@@ -10,6 +10,7 @@ final class HomeViewModel: ObservableObject {
 
     private let cardRepository: any CardRepository
     private let creditProvider: any CreditProviding
+    private var didCompleteInitialLoad: Bool
 
     init(
         cardRepository: any CardRepository,
@@ -17,6 +18,7 @@ final class HomeViewModel: ObservableObject {
     ) {
         self.cardRepository = cardRepository
         self.creditProvider = creditProvider
+        self.didCompleteInitialLoad = false
     }
 
     convenience init(container: AppContainer) {
@@ -26,7 +28,22 @@ final class HomeViewModel: ObservableObject {
         )
     }
 
-    func load() async {
+    func loadIfNeeded() async {
+        guard !didCompleteInitialLoad else {
+            return
+        }
+
+        await load(force: false)
+    }
+
+    func load(force: Bool = true) async {
+        guard !isLoading else {
+            return
+        }
+        guard force || !didCompleteInitialLoad else {
+            return
+        }
+
         isLoading = true
         errorMessage = nil
 
@@ -36,6 +53,7 @@ final class HomeViewModel: ObservableObject {
 
             self.cards = try await cards
             self.creditBalance = try await balance
+            didCompleteInitialLoad = true
         } catch {
             errorMessage = "Unable to load inbox."
         }
@@ -44,6 +62,6 @@ final class HomeViewModel: ObservableObject {
     }
 
     func refresh() async {
-        await load()
+        await load(force: true)
     }
 }

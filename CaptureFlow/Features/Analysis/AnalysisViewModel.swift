@@ -15,56 +15,127 @@ final class AnalysisViewModel: ObservableObject {
 
     let steps = [
         "Reading image",
-        "Understanding context",
-        "Building card"
+        "Understanding context"
     ]
 
     private let creditProvider: any CreditProviding
     private let visionAnalyzer: any VisionAnalyzing
-    private let cardGenerator: any CardGenerating
 
     init(
         creditProvider: any CreditProviding,
-        visionAnalyzer: any VisionAnalyzing,
-        cardGenerator: any CardGenerating
+        visionAnalyzer: any VisionAnalyzing
     ) {
         self.creditProvider = creditProvider
         self.visionAnalyzer = visionAnalyzer
-        self.cardGenerator = cardGenerator
     }
 
     convenience init(container: AppContainer) {
         self.init(
             creditProvider: container.creditProvider,
-            visionAnalyzer: container.visionAnalyzer,
-            cardGenerator: container.cardGenerator
+            visionAnalyzer: container.visionAnalyzer
         )
     }
 
-    func analyze(_ request: VisionAnalysisRequest) async -> ActionCard? {
+    func analyze(_ request: VisionAnalysisRequest) async -> VisionUnderstandingContext? {
         state = .analyzing
         currentStepIndex = 0
+        debugLog("Started analysis: \(request.debugSummary)")
 
         do {
             try await Task.sleep(for: .milliseconds(350))
+            debugLog("Consuming mock credit")
             _ = try await creditProvider.consumeCredit(for: .analyzeImage)
 
             currentStepIndex = 1
             try await Task.sleep(for: .milliseconds(450))
-            let context = try await visionAnalyzer.analyze(request)
-
-            currentStepIndex = 2
-            try await Task.sleep(for: .milliseconds(450))
-            let card = try await cardGenerator.generateCard(from: context)
+            let context: VisionUnderstandingContext
+            do {
+                debugLog("Creating vision context")
+                context = try await visionAnalyzer.analyze(request)
+                debugLog("Created vision context: \(context.debugSummary)")
+            } catch {
+                debugLog("Vision context failed: \(error.debugSummary)")
+                throw error
+            }
 
             state = .completed
-            return card
+            return context
         } catch ServiceError.insufficientCredits {
+            debugLog("Analysis failed: insufficient credits")
             state = .failed("No mock credits remaining.")
             return nil
         } catch {
-            state = .failed("Analysis failed. Try another image.")
+            debugLog("Analysis failed: \(error.debugSummary)")
+            state = .failed("Analysis failed: \(error.userFacingDebugMessage)")
             return nil
+        }
+    }
+
+    private func debugLog(_ message: String) {
+        #if DEBUG
+        print("[CaptureFlow][Analysis] \(message)")
+        #endif
+    }
+}
+
+private extension VisionAnalysisRequest {
+    var debugSummary: String {
+        [
+            "id=\(id)",
+            "selectedCardType=\(selectedCardType.rawValue)",
+            "imageBytes=\(imageData?.count ?? 0)",
+            "hasSourceImage=\(sourceImage != nil)",
+            "createdAt=\(createdAt)"
+        ].joined(separator: ", ")
+    }
+}
+
+private extension VisionUnderstandingContext {
+    var debugSummary: String {
+        [
+            "id=\(id)",
+            "requested=\(requestedCardType.rawValue)",
+            "resolved=\(resolvedCardType.rawValue)",
+            "sceneTitle=\(sceneTitle)",
+            "visibleText=\(visibleText)",
+            "visualObjects=\(visualObjects)",
+            "entities=\(entities.map { "\($0.type.rawValue):\($0.value)" })",
+            "possibleActions=\(possibleActions.map { "\($0.actionType.rawValue):\($0.title)" })",
+            "missingInfo=\(missingInfo)",
+            "confidenceScore=\(confidenceScore)"
+        ].joined(separator: ", ")
+    }
+}
+
+private extension Error {
+    var debugSummary: String {
+        "\(type(of: self)): \(String(describing: self))"
+    }
+
+    var userFacingDebugMessage: String {
+        if let serviceError = self as? ServiceError {
+            return serviceError.debugMessage
+        }
+
+        return String(describing: self)
+    }
+}
+
+private extension ServiceError {
+    var debugMessage: String {
+        switch self {
+        case .noImageProvided:
+            "No image data or source image was provided."
+        case .unsupportedCardType(let cardType):
+            "Unsupported card type: \(cardType.rawValue)."
+        case .insufficientCredits:
+            "No mock credits remaining."
+        case .permissionDenied:
+            "Permission denied."
+        case .invalidGeneratedCard:
+            "The generated card was missing required fields."
+        case .unavailable(let message):
+            message
         }
     }
 }

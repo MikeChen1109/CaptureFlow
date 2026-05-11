@@ -23,5 +23,6 @@ struct CFCardContainer<Content: View>: View {
                 RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous)
                     .stroke(CFColors.border, lineWidth: 1)
             }
+            .shadow(color: .black.opacity(0.18), radius: 16, x: 0, y: 10)
     }
 }

@@ -25,13 +25,23 @@ struct AppContainer: Sendable {
     }
 
     static func prototype() -> AppContainer {
-        AppContainer(
+        return AppContainer(
             visionAnalyzer: MockVisionAnalyzer(),
-            cardGenerator: MockCardGenerator(),
+            cardGenerator: defaultCardGenerator(),
             creditProvider: MockCreditProvider(),
             reminderCreator: MockReminderCreator(),
             calendarCreator: MockCalendarCreator(),
             cardRepository: InMemoryCardRepository()
         )
+    }
+
+    private static func defaultCardGenerator() -> any CardGenerating {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            return AppleFoundationCardGenerator()
+        }
+        #endif
+
+        return MockCardGenerator()
     }
 }

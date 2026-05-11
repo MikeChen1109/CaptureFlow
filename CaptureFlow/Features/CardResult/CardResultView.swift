@@ -2,268 +2,185 @@ import SwiftUI
 
 struct CardResultView: View {
     @StateObject private var viewModel: CardResultViewModel
+    @State private var isFinishing = false
+    private let onFinish: ((ActionCard) -> Void)?
+    private let onCancel: (() -> Void)?
 
-    init(viewModel: CardResultViewModel) {
+    init(
+        viewModel: CardResultViewModel,
+        onFinish: ((ActionCard) -> Void)? = nil,
+        onCancel: (() -> Void)? = nil
+    ) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.onFinish = onFinish
+        self.onCancel = onCancel
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
                 header
-                generatedCard
-                actions
+                sectionStack
+
+                if viewModel.isPartialGenerationComplete {
+                    actionButtons
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
             .padding(CFSpacing.large)
         }
         .background(CFColors.background.ignoresSafeArea())
         .navigationTitle("Card Result")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(onFinish != nil)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            if let onCancel {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .accessibilityLabel("Close")
+                }
+            }
+        }
+        .task {
+            viewModel.startPartialGeneration()
+        }
+        .onDisappear {
+            viewModel.cancelGeneration()
+        }
+        .animation(.snappy, value: viewModel.sectionStates)
+        .animation(.snappy, value: viewModel.isPartialGenerationComplete)
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: CFSpacing.small) {
-            Text("Generated Card")
-                .font(CFTypography.title)
-                .foregroundStyle(CFColors.textPrimary)
+        HStack(alignment: .center, spacing: CFSpacing.small) {
+            cardTypeBadge
 
-            Text("Review the mock result before saving it to your local inbox.")
-                .font(CFTypography.callout)
-                .foregroundStyle(CFColors.textSecondary)
+            CFConfidenceBadge(
+                level: viewModel.card.confidence,
+                score: viewModel.card.confidenceScore
+            )
+
+            Spacer(minLength: 0)
         }
     }
 
-    private var generatedCard: some View {
+    private var sectionStack: some View {
+        VStack(alignment: .leading, spacing: CFSpacing.large) {
+            ForEach(viewModel.sectionStates) { state in
+                GeneratedSectionCard(
+                    state: state,
+                    personalNote: Binding(
+                        get: { viewModel.personalNote },
+                        set: viewModel.updatePersonalNote
+                    )
+                )
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+    }
+
+    private var cardTypeBadge: some View {
+        HStack(spacing: CFSpacing.xSmall) {
+            Image(systemName: cardTypeIcon)
+                .imageScale(.small)
+
+            Text(viewModel.card.type.displayName)
+                .lineLimit(1)
+        }
+        .font(CFTypography.caption)
+        .foregroundStyle(CFColors.background)
+        .padding(.horizontal, CFSpacing.medium)
+        .frame(height: 30)
+        .background(CFColors.orangeHighlight)
+        .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
+    }
+
+    private var actionButtons: some View {
         CFCardContainer {
-            VStack(alignment: .leading, spacing: CFSpacing.large) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: CFSpacing.small) {
-                        Text(viewModel.card.type.displayName)
-                            .font(CFTypography.caption)
-                            .foregroundStyle(CFColors.orangeHighlight)
+            VStack(alignment: .leading, spacing: CFSpacing.medium) {
+                GeneratedSectionHeader(
+                    title: "Actions",
+                    systemImage: "wand.and.stars",
+                    status: .completed
+                )
 
-                        Text(viewModel.card.title)
-                            .font(CFTypography.headline)
-                            .foregroundStyle(CFColors.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
+                CFPrimaryButton(
+                    primaryActionTitle,
+                    systemImage: viewModel.didSave ? "checkmark" : "tray.and.arrow.down.fill",
+                    isLoading: viewModel.isSaving || isFinishing,
+                    isDisabled: viewModel.didSave
+                ) {
+                    Task {
+                        let didSave = await viewModel.save()
+                        guard didSave, let onFinish else {
+                            return
+                        }
+
+                        isFinishing = true
+                        try? await Task.sleep(for: .milliseconds(700))
+                        onFinish(viewModel.card)
                     }
-
-                    Spacer()
-
-                    CFConfidenceBadge(
-                        level: viewModel.card.confidence,
-                        score: viewModel.card.confidenceScore
-                    )
                 }
 
-                Divider()
-                    .overlay(CFColors.border)
+                HStack(spacing: CFSpacing.medium) {
+                    CFSecondaryButton(
+                        viewModel.didCreateReminder ? "Reminder Created" : reminderButtonTitle,
+                        systemImage: viewModel.didCreateReminder ? "checkmark.circle.fill" : "bell.badge.fill",
+                        tone: viewModel.didCreateReminder ? .success : .normal,
+                        isDisabled: !viewModel.canCreateReminder || viewModel.didCreateReminder || viewModel.isCreatingReminder
+                    ) {
+                        Task {
+                            await viewModel.createReminder()
+                        }
+                    }
 
-                editableFields
+                    CFSecondaryButton(
+                        viewModel.didCreateCalendar ? "Calendar Created" : calendarButtonTitle,
+                        systemImage: viewModel.didCreateCalendar ? "checkmark.circle.fill" : "calendar.badge.plus",
+                        tone: viewModel.didCreateCalendar ? .success : .normal,
+                        isDisabled: !viewModel.canCreateCalendar || viewModel.didCreateCalendar || viewModel.isCreatingCalendar
+                    ) {
+                        Task {
+                            await viewModel.createCalendarEvent()
+                        }
+                    }
+                }
 
-                Divider()
-                    .overlay(CFColors.border)
+                CFSecondaryButton(
+                    viewModel.didCopyMarkdown ? "Markdown Copied" : "Copy Markdown",
+                    systemImage: viewModel.didCopyMarkdown ? "checkmark" : "doc.on.doc.fill",
+                    tone: viewModel.didCopyMarkdown ? .success : .normal
+                ) {
+                    viewModel.copyMarkdown()
+                }
 
-                VStack(alignment: .leading, spacing: CFSpacing.small) {
-                    Text("Markdown Preview")
-                        .font(CFTypography.caption)
-                        .foregroundStyle(CFColors.orangeHighlight)
-
-                    Text(viewModel.card.markdown)
+                if let actionMessage = viewModel.actionMessage {
+                    Text(actionMessage)
                         .font(CFTypography.callout)
-                        .foregroundStyle(CFColors.textSecondary)
-                        .textSelection(.enabled)
+                        .foregroundStyle(CFColors.success)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
+                        .font(CFTypography.callout)
+                        .foregroundStyle(CFColors.destructive)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var editableFields: some View {
-        switch viewModel.card {
-        case .reminder(let reminder):
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                textField(
-                    "Title",
-                    text: binding(get: { reminder.title }, set: viewModel.updateReminderTitle)
-                )
-                datePicker(
-                    "Due",
-                    date: Binding(
-                        get: { reminder.dueDate ?? .now },
-                        set: viewModel.updateReminderDueDate
-                    )
-                )
-                textField(
-                    "Location",
-                    text: binding(get: { reminder.location ?? "" }, set: viewModel.updateReminderLocation)
-                )
-                priorityPicker(reminder.priority)
-                textEditor(
-                    "Notes",
-                    text: binding(get: { reminder.notes }, set: viewModel.updateReminderNotes)
-                )
-            }
-        case .calendar(let calendar):
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                textField(
-                    "Title",
-                    text: binding(get: { calendar.title }, set: viewModel.updateCalendarTitle)
-                )
-                datePicker(
-                    "Start",
-                    date: Binding(get: { calendar.startDate }, set: viewModel.updateCalendarStartDate)
-                )
-                datePicker(
-                    "End",
-                    date: Binding(get: { calendar.endDate }, set: viewModel.updateCalendarEndDate)
-                )
-                textField(
-                    "Location",
-                    text: binding(get: { calendar.location ?? "" }, set: viewModel.updateCalendarLocation)
-                )
-                textEditor(
-                    "Notes",
-                    text: binding(get: { calendar.notes }, set: viewModel.updateCalendarNotes)
-                )
-            }
-        case .note(let note):
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                textField(
-                    "Title",
-                    text: binding(get: { note.title }, set: viewModel.updateNoteTitle)
-                )
-                textEditor(
-                    "Summary",
-                    text: binding(get: { note.summary }, set: viewModel.updateNoteSummary)
-                )
-                textEditor(
-                    "Key Points",
-                    text: binding(get: { note.bullets.joined(separator: "\n") }, set: viewModel.updateNoteBullets)
-                )
-                textEditor(
-                    "Todos",
-                    text: binding(get: { note.todos.joined(separator: "\n") }, set: viewModel.updateNoteTodos)
-                )
-            }
-        case .shopping(let shopping):
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                textField(
-                    "Product",
-                    text: binding(get: { shopping.productName }, set: viewModel.updateShoppingProductName)
-                )
-                textField(
-                    "Price",
-                    text: binding(get: { shopping.price ?? "" }, set: viewModel.updateShoppingPrice)
-                )
-                textField(
-                    "Merchant",
-                    text: binding(get: { shopping.merchant ?? "" }, set: viewModel.updateShoppingMerchant)
-                )
-                textField(
-                    "Offer",
-                    text: binding(get: { shopping.offer ?? "" }, set: viewModel.updateShoppingOffer)
-                )
-                datePicker(
-                    "Reminder",
-                    date: Binding(get: { shopping.reminderDate ?? .now }, set: viewModel.updateShoppingReminderDate)
-                )
-                textEditor(
-                    "Notes",
-                    text: binding(get: { shopping.notes }, set: viewModel.updateShoppingNotes)
-                )
-            }
-        case .job(let job):
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                textField(
-                    "Company",
-                    text: binding(get: { job.company }, set: viewModel.updateJobCompany)
-                )
-                textField(
-                    "Role",
-                    text: binding(get: { job.role }, set: viewModel.updateJobRole)
-                )
-                textEditor(
-                    "Skills",
-                    text: binding(get: { job.skills.joined(separator: "\n") }, set: viewModel.updateJobSkills)
-                )
-                textField(
-                    "Contact",
-                    text: binding(get: { job.contact ?? "" }, set: viewModel.updateJobContact)
-                )
-                textField(
-                    "Next Action",
-                    text: binding(get: { job.nextAction }, set: viewModel.updateJobNextAction)
-                )
-                datePicker(
-                    "Follow Up",
-                    date: Binding(get: { job.followUpDate ?? .now }, set: viewModel.updateJobFollowUpDate)
-                )
-                textEditor(
-                    "Notes",
-                    text: binding(get: { job.notes }, set: viewModel.updateJobNotes)
-                )
-            }
+    private var primaryActionTitle: String {
+        if viewModel.didSave {
+            return onFinish == nil ? "Saved" : "Saved - Returning"
         }
-    }
 
-    private var actions: some View {
-        VStack(spacing: CFSpacing.medium) {
-            CFPrimaryButton(
-                viewModel.didSave ? "Saved" : "Save to Inbox",
-                systemImage: viewModel.didSave ? "checkmark" : "tray.and.arrow.down.fill",
-                isLoading: viewModel.isSaving,
-                isDisabled: viewModel.didSave
-            ) {
-                Task {
-                    await viewModel.save()
-                }
-            }
-
-            HStack(spacing: CFSpacing.medium) {
-                CFSecondaryButton(
-                    viewModel.didCreateReminder ? "Reminder Created" : reminderButtonTitle,
-                    systemImage: viewModel.didCreateReminder ? "checkmark.circle.fill" : "bell.badge.fill",
-                    isDisabled: !viewModel.canCreateReminder || viewModel.didCreateReminder || viewModel.isCreatingReminder
-                ) {
-                    Task {
-                        await viewModel.createReminder()
-                    }
-                }
-
-                CFSecondaryButton(
-                    viewModel.didCreateCalendar ? "Calendar Created" : calendarButtonTitle,
-                    systemImage: viewModel.didCreateCalendar ? "checkmark.circle.fill" : "calendar.badge.plus",
-                    isDisabled: !viewModel.canCreateCalendar || viewModel.didCreateCalendar || viewModel.isCreatingCalendar
-                ) {
-                    Task {
-                        await viewModel.createCalendarEvent()
-                    }
-                }
-            }
-
-            CFSecondaryButton(
-                viewModel.didCopyMarkdown ? "Markdown Copied" : "Copy Markdown",
-                systemImage: viewModel.didCopyMarkdown ? "checkmark" : "doc.on.doc.fill"
-            ) {
-                viewModel.copyMarkdown()
-            }
-
-            if let actionMessage = viewModel.actionMessage {
-                Text(actionMessage)
-                    .font(CFTypography.callout)
-                    .foregroundStyle(CFColors.orangeHighlight)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(CFTypography.callout)
-                    .foregroundStyle(CFColors.destructive)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
+        return onFinish == nil ? "Save to Inbox" : "Save & Finish"
     }
 
     private var reminderButtonTitle: String {
@@ -274,93 +191,20 @@ struct CardResultView: View {
         viewModel.isCreatingCalendar ? "Creating..." : "Create Calendar"
     }
 
-    private func binding(
-        get: @escaping () -> String,
-        set: @escaping (String) -> Void
-    ) -> Binding<String> {
-        Binding(get: get, set: set)
-    }
-
-    private func textField(_ title: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
-            fieldLabel(title)
-
-            TextField(title, text: text)
-                .font(CFTypography.callout)
-                .foregroundStyle(CFColors.textPrimary)
-                .padding(.horizontal, CFSpacing.medium)
-                .frame(height: 46)
-                .background(CFColors.secondarySurface)
-                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous)
-                        .stroke(CFColors.border, lineWidth: 1)
-                }
+    private var cardTypeIcon: String {
+        switch viewModel.card.type {
+        case .auto:
+            "sparkles"
+        case .reminder:
+            "bell.badge.fill"
+        case .calendar:
+            "calendar.badge.plus"
+        case .note:
+            "note.text"
+        case .shopping:
+            "bag.fill"
+        case .job:
+            "briefcase.fill"
         }
-    }
-
-    private func textEditor(_ title: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
-            fieldLabel(title)
-
-            TextEditor(text: text)
-                .font(CFTypography.callout)
-                .foregroundStyle(CFColors.textPrimary)
-                .scrollContentBackground(.hidden)
-                .padding(.horizontal, CFSpacing.small)
-                .padding(.vertical, CFSpacing.xSmall)
-                .frame(minHeight: 96)
-                .background(CFColors.secondarySurface)
-                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous)
-                        .stroke(CFColors.border, lineWidth: 1)
-                }
-        }
-    }
-
-    private func datePicker(_ title: String, date: Binding<Date>) -> some View {
-        VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
-            fieldLabel(title)
-
-            DatePicker(title, selection: date)
-                .labelsHidden()
-                .tint(CFColors.primaryOrange)
-                .padding(CFSpacing.medium)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(CFColors.secondarySurface)
-                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous)
-                        .stroke(CFColors.border, lineWidth: 1)
-                }
-        }
-    }
-
-    private func priorityPicker(_ priority: ReminderCard.Priority) -> some View {
-        VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
-            fieldLabel("Priority")
-
-            Picker(
-                "Priority",
-                selection: Binding(
-                    get: { priority },
-                    set: viewModel.updateReminderPriority
-                )
-            ) {
-                ForEach(ReminderCard.Priority.allCases) { priority in
-                    Text(priority.rawValue.capitalized)
-                        .tag(priority)
-                }
-            }
-            .pickerStyle(.segmented)
-            .tint(CFColors.primaryOrange)
-        }
-    }
-
-    private func fieldLabel(_ title: String) -> some View {
-        Text(title)
-            .font(CFTypography.caption)
-            .foregroundStyle(CFColors.textSecondary)
     }
 }

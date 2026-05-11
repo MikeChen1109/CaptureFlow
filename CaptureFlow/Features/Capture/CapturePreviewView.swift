@@ -7,27 +7,36 @@ struct CapturePreviewView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isShowingCamera = false
     let onAnalyze: (VisionAnalysisRequest) -> Void
+    let onCancel: (() -> Void)?
 
-    init(onAnalyze: @escaping (VisionAnalysisRequest) -> Void = { _ in }) {
+    init(
+        onAnalyze: @escaping (VisionAnalysisRequest) -> Void = { _ in },
+        onCancel: (() -> Void)? = nil
+    ) {
         self.onAnalyze = onAnalyze
+        self.onCancel = onCancel
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
-                header
-                imagePreview
-                imageActions
-                cardTypeSection
-                analyzeSection
+        VStack(spacing: 0) {
+            navigationHeader
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
+                    imagePreview
+                    imageActions
+                    cardTypeSection
+                }
+                .padding(.horizontal, CFSpacing.large)
+                .padding(.top, CFSpacing.medium)
+                .padding(.bottom, 96)
             }
-            .padding(.horizontal, CFSpacing.large)
-            .padding(.vertical, CFSpacing.xLarge)
         }
         .background(CFColors.background.ignoresSafeArea())
-        .navigationTitle("Add Image")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            analyzeFooter
+        }
+        .toolbar(.hidden, for: .navigationBar)
         .onChange(of: selectedPhotoItem) { _, newValue in
             Task {
                 await viewModel.loadPhoto(from: newValue)
@@ -44,16 +53,34 @@ struct CapturePreviewView: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: CFSpacing.small) {
-            Text("Add Image")
-                .font(CFTypography.title)
-                .foregroundStyle(CFColors.textPrimary)
+    private var navigationHeader: some View {
+        VStack(alignment: .leading, spacing: CFSpacing.medium) {
+            if let onCancel {
+                Button(action: onCancel) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(CFColors.orangeHighlight)
+                        .frame(width: 40, height: 40)
+                        .background(CFColors.secondarySurface)
+                        .clipShape(Circle())
+                        .overlay {
+                            Circle()
+                                .stroke(CFColors.border, lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
+            }
 
-            Text("Prototype mode: analysis is simulated locally.")
-                .font(CFTypography.callout)
-                .foregroundStyle(CFColors.textSecondary)
+            Text("Add Image")
+                .font(CFTypography.largeTitle)
+                .foregroundStyle(CFColors.textPrimary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, CFSpacing.large)
+        .padding(.top, CFSpacing.medium)
+        .padding(.bottom, CFSpacing.large)
+        .background(CFColors.background)
     }
 
     private var imagePreview: some View {
@@ -135,17 +162,33 @@ struct CapturePreviewView: View {
         }
     }
 
-    private var analyzeSection: some View {
-        CFPrimaryButton(
-            "Analyze",
-            systemImage: "wand.and.sparkles",
-            isDisabled: !viewModel.canAnalyze
-        ) {
-            do {
-                onAnalyze(try viewModel.makeAnalysisRequest())
-            } catch {
-                viewModel.errorMessage = "Select an image before analyzing."
+    private var analyzeFooter: some View {
+        VStack(spacing: CFSpacing.medium) {
+            CFPrimaryButton(
+                "Analyze",
+                systemImage: "wand.and.sparkles",
+                isDisabled: !viewModel.canAnalyze
+            ) {
+                do {
+                    onAnalyze(try viewModel.makeAnalysisRequest())
+                } catch {
+                    viewModel.errorMessage = "Select an image before analyzing."
+                }
             }
         }
+        .padding(.horizontal, CFSpacing.large)
+        .padding(.top, CFSpacing.medium)
+        .padding(.bottom, CFSpacing.small)
+        .background {
+            Rectangle()
+                .fill(CFColors.background.opacity(0.94))
+                .ignoresSafeArea()
+        }
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(CFColors.border.opacity(0.7))
+                .frame(height: 1)
+        }
     }
+
 }

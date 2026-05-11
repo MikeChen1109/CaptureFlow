@@ -6,7 +6,7 @@ struct ShoppingCard: Codable, Hashable, Identifiable, Sendable {
     var price: String?
     var merchant: String?
     var offer: String?
-    var reminderDate: Date?
+    var date: Date?
     var notes: String
     var reminderExternalID: String?
 
@@ -24,7 +24,7 @@ struct ShoppingCard: Codable, Hashable, Identifiable, Sendable {
         price: String? = nil,
         merchant: String? = nil,
         offer: String? = nil,
-        reminderDate: Date? = nil,
+        date: Date? = nil,
         notes: String = "",
         reminderExternalID: String? = nil
     ) {
@@ -33,7 +33,7 @@ struct ShoppingCard: Codable, Hashable, Identifiable, Sendable {
         self.price = price
         self.merchant = merchant
         self.offer = offer
-        self.reminderDate = reminderDate
+        self.date = date
         self.notes = notes
         self.reminderExternalID = reminderExternalID
     }

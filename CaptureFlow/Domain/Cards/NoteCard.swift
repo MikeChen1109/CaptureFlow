@@ -5,7 +5,7 @@ struct NoteCard: Codable, Hashable, Identifiable, Sendable {
     var title: String
     var summary: String
     var bullets: [String]
-    var todos: [String]
+    var items: [String]
 
     var id: UUID { metadata.id }
     var createdAt: Date { metadata.createdAt }
@@ -20,12 +20,12 @@ struct NoteCard: Codable, Hashable, Identifiable, Sendable {
         title: String,
         summary: String,
         bullets: [String] = [],
-        todos: [String] = []
+        items: [String] = []
     ) {
         self.metadata = metadata
         self.title = title
         self.summary = summary
         self.bullets = bullets
-        self.todos = todos
+        self.items = items
     }
 }

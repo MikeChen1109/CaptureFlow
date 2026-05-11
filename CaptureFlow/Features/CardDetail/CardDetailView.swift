@@ -71,7 +71,7 @@ struct CardDetailView: View {
 
                         Text(statusText(card))
                             .font(CFTypography.callout)
-                            .foregroundStyle(CFColors.textSecondary)
+                            .foregroundStyle(statusTint(card))
                     }
 
                     Spacer()
@@ -127,7 +127,8 @@ struct CardDetailView: View {
         VStack(spacing: CFSpacing.medium) {
             CFSecondaryButton(
                 viewModel.didCopyMarkdown ? "Markdown Copied" : "Copy Markdown",
-                systemImage: viewModel.didCopyMarkdown ? "checkmark" : "doc.on.doc.fill"
+                systemImage: viewModel.didCopyMarkdown ? "checkmark" : "doc.on.doc.fill",
+                tone: viewModel.didCopyMarkdown ? .success : .normal
             ) {
                 viewModel.copyMarkdown()
             }
@@ -148,6 +149,7 @@ struct CardDetailView: View {
                 CFSecondaryButton(
                     viewModel.isDeleting ? "Deleting..." : "Delete",
                     systemImage: "trash.fill",
+                    tone: .destructive,
                     isDisabled: viewModel.isArchiving || viewModel.isDeleting
                 ) {
                     Task {
@@ -161,7 +163,7 @@ struct CardDetailView: View {
             if let actionMessage = viewModel.actionMessage {
                 Text(actionMessage)
                     .font(CFTypography.callout)
-                    .foregroundStyle(CFColors.orangeHighlight)
+                    .foregroundStyle(CFColors.success)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
@@ -176,6 +178,19 @@ struct CardDetailView: View {
 
     private func statusText(_ card: ActionCard) -> String {
         "Status: \(card.status.rawValue.capitalized)"
+    }
+
+    private func statusTint(_ card: ActionCard) -> Color {
+        switch card.status {
+        case .pending:
+            CFColors.warning
+        case .saved:
+            CFColors.info
+        case .completed:
+            CFColors.success
+        case .archived:
+            CFColors.textSecondary
+        }
     }
 
     private func sourceText(_ card: ActionCard) -> String {

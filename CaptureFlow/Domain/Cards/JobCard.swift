@@ -6,8 +6,8 @@ struct JobCard: Codable, Hashable, Identifiable, Sendable {
     var role: String
     var skills: [String]
     var contact: String?
-    var nextAction: String
-    var followUpDate: Date?
+    var detail: String
+    var date: Date?
     var notes: String
     var reminderExternalID: String?
 
@@ -25,8 +25,8 @@ struct JobCard: Codable, Hashable, Identifiable, Sendable {
         role: String,
         skills: [String] = [],
         contact: String? = nil,
-        nextAction: String,
-        followUpDate: Date? = nil,
+        detail: String,
+        date: Date? = nil,
         notes: String = "",
         reminderExternalID: String? = nil
     ) {
@@ -35,8 +35,8 @@ struct JobCard: Codable, Hashable, Identifiable, Sendable {
         self.role = role
         self.skills = skills
         self.contact = contact
-        self.nextAction = nextAction
-        self.followUpDate = followUpDate
+        self.detail = detail
+        self.date = date
         self.notes = notes
         self.reminderExternalID = reminderExternalID
     }
