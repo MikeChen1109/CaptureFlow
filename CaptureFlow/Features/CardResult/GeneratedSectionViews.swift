@@ -2,7 +2,6 @@ import SwiftUI
 
 struct GeneratedSectionCard: View {
     let state: GeneratedSectionState
-    @Binding var personalNote: String
 
     var body: some View {
         CFCardContainer {
@@ -19,6 +18,11 @@ struct GeneratedSectionCard: View {
             }
         }
         .opacity(state.status == .waiting ? 0.68 : 1)
+        .overlay(alignment: .topTrailing) {
+            GeneratedSectionCornerStatus(status: state.status)
+                .padding(.top, CFSpacing.medium)
+                .padding(.trailing, CFSpacing.medium)
+        }
     }
 
     @ViewBuilder
@@ -39,74 +43,28 @@ struct GeneratedSectionCard: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 VStack(alignment: .leading, spacing: CFSpacing.small) {
-                    ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                         GeneratedPlanStepRow(index: index + 1, step: step)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
             }
-        case .recommendedActions(let actions):
-            VStack(alignment: .leading, spacing: CFSpacing.small) {
-                ForEach(actions) { action in
-                    GeneratedActionRow(action: action)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-        case .draft(let draft):
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                Text(draft.title)
-                    .font(CFTypography.headline)
-                    .foregroundStyle(CFColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(draft.body)
-                    .font(CFTypography.body)
-                    .foregroundStyle(CFColors.textSecondary)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-            }
         case .keyDetails(let fields):
             VStack(alignment: .leading, spacing: CFSpacing.small) {
-                ForEach(fields) { field in
+                ForEach(Array(fields.enumerated()), id: \.offset) { _, field in
                     GeneratedFieldRow(field: field)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         case .missingInfo(let items):
             VStack(alignment: .leading, spacing: CFSpacing.small) {
                 ForEach(items, id: \.self) { item in
                     GeneratedBulletRow(text: item, systemImage: "questionmark.circle.fill")
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-            }
-        case .personalNote(let placeholder):
-            ZStack(alignment: .topLeading) {
-                if personalNote.isEmpty {
-                    Text(placeholder)
-                        .font(CFTypography.callout)
-                        .foregroundStyle(CFColors.placeholderText)
-                        .padding(.horizontal, CFSpacing.medium)
-                        .padding(.vertical, CFSpacing.medium)
-                        .allowsHitTesting(false)
-                }
-
-                TextEditor(text: $personalNote)
-                    .font(CFTypography.callout)
-                    .foregroundStyle(CFColors.textPrimary)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, CFSpacing.small)
-                    .padding(.vertical, CFSpacing.xSmall)
-                    .frame(minHeight: 92)
-            }
-            .background(CFColors.fieldSurface)
-            .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous)
-                    .stroke(CFColors.fieldBorder, lineWidth: 1)
             }
         case nil:
-            GeneratedWaitingRow()
+            Text(state.sectionType.waitingHint)
+                .font(CFTypography.callout)
+                .foregroundStyle(CFColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -130,23 +88,30 @@ struct GeneratedSectionHeader: View {
                 .foregroundStyle(CFColors.textPrimary)
 
             Spacer(minLength: 0)
-
-            HStack(spacing: CFSpacing.xSmall) {
-                if status == .generating {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(CFColors.orangeHighlight)
-                }
-
-                Text(status.title)
-                    .font(CFTypography.caption)
-                    .foregroundStyle(status.textColor)
-            }
-            .padding(.horizontal, CFSpacing.small)
-            .frame(height: 26)
-            .background(status.pillBackground)
-            .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
         }
+    }
+}
+
+private struct GeneratedSectionCornerStatus: View {
+    let status: GeneratedSectionStatus
+
+    var body: some View {
+        Group {
+            switch status {
+            case .waiting, .generating:
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(CFColors.orangeHighlight)
+            case .completed:
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(CFColors.success)
+            }
+        }
+        .frame(width: 20, height: 20)
+        .padding(6)
+        .background(CFColors.elevatedSurface.opacity(0.96))
+        .clipShape(Circle())
     }
 }
 
@@ -174,33 +139,7 @@ private struct GeneratedPlanStepRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(CFSpacing.medium)
-        .background(CFColors.elevatedSurface)
-        .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
-    }
-}
-
-private struct GeneratedActionRow: View {
-    let action: GeneratedAction
-
-    var body: some View {
-        HStack(alignment: .top, spacing: CFSpacing.medium) {
-            Image(systemName: action.actionType.systemImage)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(CFColors.orangeHighlight)
-                .frame(width: 24, height: 24)
-
-            VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
-                Text(action.title)
-                    .font(CFTypography.callout.weight(.semibold))
-                    .foregroundStyle(CFColors.textPrimary)
-
-                Text(action.description)
-                    .font(CFTypography.caption)
-                    .foregroundStyle(CFColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(CFSpacing.medium)
         .background(CFColors.elevatedSurface)
         .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
@@ -227,13 +166,8 @@ private struct GeneratedFieldRow: View {
                     .foregroundStyle(CFColors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer(minLength: 0)
-
-            Text("\(Int(field.confidence * 100))%")
-                .font(CFTypography.caption)
-                .foregroundStyle(CFColors.textSecondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(CFSpacing.medium)
         .background(CFColors.elevatedSurface)
         .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
@@ -245,7 +179,7 @@ private struct GeneratedBulletRow: View {
     let systemImage: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: CFSpacing.medium) {
+        HStack(alignment: .center, spacing: CFSpacing.medium) {
             Image(systemName: systemImage)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(CFColors.warning)
@@ -262,20 +196,6 @@ private struct GeneratedBulletRow: View {
     }
 }
 
-private struct GeneratedWaitingRow: View {
-    var body: some View {
-        RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous)
-            .fill(CFColors.elevatedSurface.opacity(0.72))
-            .frame(height: 44)
-            .overlay(alignment: .leading) {
-                RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous)
-                    .fill(CFColors.border)
-                    .frame(width: 140, height: 10)
-                    .padding(.horizontal, CFSpacing.medium)
-            }
-    }
-}
-
 private extension GeneratedSectionType {
     var title: String {
         switch self {
@@ -283,16 +203,10 @@ private extension GeneratedSectionType {
             "Summary"
         case .plan:
             "Plan / Checklist"
-        case .recommendedActions:
-            "Recommended Actions"
-        case .draft:
-            "Draft Output"
         case .keyDetails:
             "Key Details"
         case .missingInfo:
             "Missing Info"
-        case .personalNote:
-            "Personal Note"
         }
     }
 
@@ -302,16 +216,23 @@ private extension GeneratedSectionType {
             "sparkles"
         case .plan:
             "checklist"
-        case .recommendedActions:
-            "wand.and.stars"
-        case .draft:
-            "doc.text.fill"
         case .keyDetails:
             "tag.fill"
         case .missingInfo:
             "questionmark.circle.fill"
-        case .personalNote:
-            "note.text"
+        }
+    }
+
+    var waitingHint: String {
+        switch self {
+        case .summary:
+            "Drafting ready-to-use output..."
+        case .plan:
+            "Building a practical checklist..."
+        case .keyDetails:
+            "Collecting key entities..."
+        case .missingInfo:
+            "Finding remaining gaps..."
         }
     }
 }

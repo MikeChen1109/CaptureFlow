@@ -32,10 +32,6 @@ struct CardRowView: View {
                         .font(CFTypography.caption)
                         .foregroundStyle(CFColors.textSecondary)
                 }
-
-                Spacer(minLength: CFSpacing.small)
-
-                CFConfidenceBadge(level: card.confidence, score: card.confidenceScore)
             }
         }
     }

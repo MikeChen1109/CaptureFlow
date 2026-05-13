@@ -1,61 +1,279 @@
 import SwiftUI
 
 struct CardResultGenerationView: View {
-    let context: VisionUnderstandingContext
+    private enum FlowPhase {
+        case loading
+        case failed
+        case revealing
+        case ready
+    }
+
+    private enum LoadingStep: Int {
+        case readingImage
+        case understandingContext
+        case generatingCard
+
+        static let allTitles = [
+            "Reading image",
+            "Understanding context",
+            "Generating action card"
+        ]
+    }
+
+    let request: VisionAnalysisRequest
     let cardGenerator: any CardGenerating
     let cardRepository: any CardRepository
     let reminderCreator: any ReminderCreating
     let calendarCreator: any CalendarCreating
     let onFinish: (ActionCard) -> Void
+    let onChangeImage: () -> Void
     let onCancel: () -> Void
 
-    @State private var generatedResult: GeneratedCardResult?
-    @State private var partial = CardGenerationPartial()
-    @State private var errorMessage: String?
-    @State private var generationRunID = UUID()
+    @StateObject private var analysisViewModel: AnalysisViewModel
+    @StateObject private var viewModel: CardResultViewModel
+    @State private var flowAttemptID = UUID()
+    @State private var phase: FlowPhase = .loading
+    @State private var loadingStepIndex = LoadingStep.readingImage.rawValue
+    @State private var loadingErrorMessage: String?
+    @State private var revealedSectionCount = 0
+
+    init(
+        request: VisionAnalysisRequest,
+        creditProvider: any CreditProviding,
+        visionAnalyzer: any VisionAnalyzing,
+        cardGenerator: any CardGenerating,
+        cardRepository: any CardRepository,
+        reminderCreator: any ReminderCreating,
+        calendarCreator: any CalendarCreating,
+        onFinish: @escaping (ActionCard) -> Void,
+        onChangeImage: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.request = request
+        self.cardGenerator = cardGenerator
+        self.cardRepository = cardRepository
+        self.reminderCreator = reminderCreator
+        self.calendarCreator = calendarCreator
+        self.onFinish = onFinish
+        self.onChangeImage = onChangeImage
+        self.onCancel = onCancel
+
+        _analysisViewModel = StateObject(
+            wrappedValue: AnalysisViewModel(
+                creditProvider: creditProvider,
+                visionAnalyzer: visionAnalyzer
+            )
+        )
+
+        _viewModel = StateObject(
+            wrappedValue: CardResultViewModel(
+                card: Self.placeholderCard(),
+                cardRepository: cardRepository,
+                reminderCreator: reminderCreator,
+                calendarCreator: calendarCreator
+            )
+        )
+    }
 
     var body: some View {
-        Group {
-            if let generatedResult {
-                CardResultView(
-                    viewModel: CardResultViewModel(
-                        card: generatedResult.card,
-                        generatedContent: generatedResult.content,
-                        cardRepository: cardRepository,
-                        reminderCreator: reminderCreator,
-                        calendarCreator: calendarCreator
-                    ),
-                    onFinish: onFinish,
+        ZStack {
+            CardResultView(
+                viewModel: viewModel,
+                onFinish: onFinish,
+                onCancel: visibleOnCancel,
+                onRetry: retryFlow,
+                revealedSectionCount: revealedSectionCount,
+                isResultFullyRevealed: phase == .ready
+            )
+            .opacity(phase == .revealing || phase == .ready ? 1 : 0)
+            .scaleEffect(phase == .revealing ? 0.996 : 1)
+            .allowsHitTesting(phase == .ready)
+
+            if phase == .loading || phase == .failed {
+                UnifiedGenerationLoadingView(
+                    currentStepIndex: loadingStepIndex,
+                    steps: LoadingStep.allTitles,
+                    errorMessage: loadingErrorMessage,
+                    onRetry: retryFlow,
+                    onChangeImage: onChangeImage,
                     onCancel: onCancel
                 )
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-            } else {
-                generationContent
-                    .transition(.opacity)
+                .transition(.opacity)
             }
         }
-        .animation(.snappy, value: generatedResult != nil)
-        .task(id: generationRunID) {
-            await streamCard()
+        .animation(.easeInOut(duration: 0.28), value: phase)
+        .task(id: flowAttemptID) {
+            await runPipeline()
+        }
+        .onChange(of: analysisViewModel.currentStepIndex) { _, newValue in
+            guard phase == .loading else { return }
+            loadingStepIndex = max(
+                LoadingStep.readingImage.rawValue,
+                min(newValue, LoadingStep.understandingContext.rawValue)
+            )
         }
     }
 
-    private var generationContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
-                summarySection
+    private var visibleOnCancel: (() -> Void)? {
+        phase == .ready ? onCancel : nil
+    }
 
-                if let errorMessage {
-                    failureActions(errorMessage)
+    private func runPipeline() async {
+        phase = .loading
+        loadingErrorMessage = nil
+        loadingStepIndex = LoadingStep.readingImage.rawValue
+        revealedSectionCount = 0
+
+        guard let context = await analysisViewModel.analyze(request) else {
+            if case .failed(let message) = analysisViewModel.state {
+                loadingErrorMessage = message
+            } else {
+                loadingErrorMessage = "Analysis failed."
+            }
+            phase = .failed
+            return
+        }
+
+        loadingStepIndex = LoadingStep.generatingCard.rawValue
+
+        do {
+            var completedPayload: (card: ActionCard, content: GeneratedCardContent)?
+            for try await event in cardGenerator.streamGeneratedContent(from: context) {
+                switch event {
+                case .partialContent:
+                    continue
+                case .completed(let card, let content):
+                    completedPayload = (card: card, content: content)
                 }
             }
-            .padding(CFSpacing.large)
+
+            guard let completedPayload else {
+                throw ServiceError.invalidGeneratedCard
+            }
+
+            viewModel.completeGeneration(card: completedPayload.card, content: completedPayload.content)
+            await revealContentTopToBottom()
+        } catch {
+            viewModel.failGeneration(error)
+            loadingErrorMessage = "Unable to build this card: \(error.userFacingMessage)"
+            phase = .failed
         }
-        .background(CFColors.background.ignoresSafeArea())
-        .navigationTitle("Card Result")
-        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func revealContentTopToBottom() async {
+        withAnimation(.easeOut(duration: 0.2)) {
+            phase = .revealing
+        }
+        let totalSections = viewModel.sectionStates.count
+
+        for nextVisibleCount in 1...totalSections {
+            withAnimation(.spring(response: 0.44, dampingFraction: 0.83, blendDuration: 0.1)) {
+                revealedSectionCount = nextVisibleCount
+            }
+            try? await Task.sleep(for: .milliseconds(135))
+        }
+
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
+            phase = .ready
+        }
+    }
+
+    private func retryFlow() {
+        viewModel.resetForRetry(with: Self.placeholderCard())
+        loadingErrorMessage = nil
+        revealedSectionCount = 0
+        phase = .loading
+        flowAttemptID = UUID()
+    }
+
+    private static func placeholderCard() -> ActionCard {
+        .note(
+            NoteCard(
+                metadata: CardMetadata(
+                    confidence: .medium,
+                    confidenceScore: 0.6
+                ),
+                title: "Generating...",
+                summary: ""
+            )
+        )
+    }
+}
+
+private struct UnifiedGenerationLoadingView: View {
+    @State private var pulse = false
+
+    let currentStepIndex: Int
+    let steps: [String]
+    let errorMessage: String?
+    let onRetry: () -> Void
+    let onChangeImage: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    CFColors.background,
+                    CFColors.background,
+                    CFColors.secondarySurface
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: CFSpacing.xLarge) {
+                Spacer()
+
+                ZStack {
+                    Circle()
+                        .fill(CFColors.primaryOrange.opacity(0.18))
+                        .frame(width: pulse ? 146 : 118, height: pulse ? 146 : 118)
+                        .blur(radius: 8)
+
+                    RoundedRectangle(cornerRadius: CFCornerRadius.xLarge, style: .continuous)
+                        .fill(CFColors.surface)
+                        .frame(width: 94, height: 94)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: CFCornerRadius.xLarge, style: .continuous)
+                                .stroke(CFColors.border, lineWidth: 1)
+                        }
+
+                    Image(systemName: "sparkles.rectangle.stack.fill")
+                        .font(.system(size: 42, weight: .semibold))
+                        .foregroundStyle(CFColors.orangeHighlight)
+                }
+                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
+
+                CFCardContainer {
+                    VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
+                        VStack(alignment: .leading, spacing: CFSpacing.small) {
+                            Text("Analyzing & Building Card")
+                                .font(CFTypography.title)
+                                .foregroundStyle(CFColors.textPrimary)
+
+                            Text("Prototype mode: local analysis and generation.")
+                                .font(CFTypography.callout)
+                                .foregroundStyle(CFColors.textSecondary)
+                        }
+
+                        CFLoadingStepsView(
+                            steps: steps,
+                            currentStepIndex: max(0, min(currentStepIndex, steps.count - 1))
+                        )
+
+                        if let errorMessage {
+                            failureActions(message: errorMessage)
+                        }
+                    }
+                }
+                .padding(.horizontal, CFSpacing.large)
+
+                Spacer()
+            }
+        }
         .navigationBarBackButtonHidden(true)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button(action: onCancel) {
@@ -65,142 +283,49 @@ struct CardResultGenerationView: View {
                 .accessibilityLabel("Close")
             }
         }
+        .task {
+            pulse = true
+        }
     }
 
-    private var summarySection: some View {
-        VStack(alignment: .leading, spacing: CFSpacing.medium) {
-            HStack(spacing: CFSpacing.xSmall) {
-                Image(systemName: "sparkles")
-                    .imageScale(.small)
-
-                Text("AI Summary")
-            }
-            .font(CFTypography.caption)
-            .foregroundStyle(CFColors.orangeHighlight)
-
-            if let title = partial.title, !title.isEmpty {
-                Text(title)
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CFColors.textPrimary)
-                    .contentTransition(.opacity)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Text(summaryText)
-                .font(CFTypography.body)
-                .foregroundStyle(CFColors.textSecondary)
-                .lineSpacing(3)
-                .contentTransition(.opacity)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(CFSpacing.large)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [
-                    CFColors.primaryOrange.opacity(0.18),
-                    CFColors.secondarySurface
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous)
-                .stroke(CFColors.primaryOrange.opacity(0.28), lineWidth: 1)
-        }
-        .animation(.easeOut, value: partial)
-    }
-
-    private var summaryText: String {
-        if let summary = partial.summary, !summary.isEmpty {
-            return summary
-        }
-
-        return "Generating summary from the analyzed image context..."
-    }
-
-    private func failureActions(_ message: String) -> some View {
+    private func failureActions(message: String) -> some View {
         VStack(alignment: .leading, spacing: CFSpacing.medium) {
             Text(message)
                 .font(CFTypography.callout)
                 .foregroundStyle(CFColors.destructive)
 
             CFPrimaryButton("Try Again", systemImage: "arrow.clockwise") {
-                errorMessage = nil
-                partial = CardGenerationPartial()
-                generationRunID = UUID()
+                onRetry()
             }
 
-            CFSecondaryButton("Back Home", systemImage: "house.fill") {
-                onCancel()
-            }
-        }
-    }
+            HStack(spacing: CFSpacing.medium) {
+                CFSecondaryButton("Change Image", systemImage: "photo.on.rectangle") {
+                    onChangeImage()
+                }
 
-    private func streamCard() async {
-        guard generatedResult == nil else {
-            return
-        }
-
-        do {
-            async let content = generatedContent()
-
-            for try await event in cardGenerator.streamCard(from: context) {
-                switch event {
-                case .partial(let partial):
-                    withAnimation(.easeOut) {
-                        self.partial = partial
-                    }
-                case .completed(let card):
-                    if partial.title == nil || partial.summary == nil {
-                        withAnimation(.easeOut) {
-                            partial = card.generationPartial
-                        }
-                    }
-
-                    try? await Task.sleep(for: .milliseconds(450))
-                    let generatedContent = await content
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
-                        generatedResult = GeneratedCardResult(card: card, content: generatedContent)
-                    }
+                CFSecondaryButton("Back Home", systemImage: "house.fill") {
+                    onCancel()
                 }
             }
-        } catch {
-            errorMessage = "Unable to build this card: \(error.userFacingMessage)"
         }
     }
-
-    private func generatedContent() async -> GeneratedCardContent {
-        do {
-            return try await cardGenerator.generateContent(from: context)
-        } catch {
-            return GeneratedCardContent.fallback(from: context)
-        }
-    }
-}
-
-private struct GeneratedCardResult {
-    let card: ActionCard
-    let content: GeneratedCardContent
 }
 
 private extension Error {
     var userFacingMessage: String {
         if let serviceError = self as? ServiceError {
-            return serviceError.userFacingMessage
+            return serviceError.message
         }
 
-        return String(describing: self)
+        return localizedDescription
     }
 }
 
 private extension ServiceError {
-    var userFacingMessage: String {
+    var message: String {
         switch self {
         case .noImageProvided:
-            "No image data was provided."
+            "No image was found."
         case .unsupportedCardType(let cardType):
             "Unsupported card type: \(cardType.rawValue)."
         case .insufficientCredits:
@@ -208,7 +333,7 @@ private extension ServiceError {
         case .permissionDenied:
             "Permission denied."
         case .invalidGeneratedCard:
-            "The generated card was missing required fields."
+            "Generated output was invalid."
         case .unavailable(let message):
             message
         }

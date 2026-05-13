@@ -6,332 +6,272 @@ import FoundationModels
 @available(iOS 26.0, *)
 struct AppleFoundationCardGenerator: CardGenerating {
     private let model: SystemLanguageModel
-    private let fallback: MockCardGenerator
-
+    private let fallbackGenerator: any CardGenerating
+    
     init(
         model: SystemLanguageModel = .default,
-        fallback: MockCardGenerator = MockCardGenerator()
+        fallbackGenerator: any CardGenerating = MockCardGenerator()
     ) {
         self.model = model
-        self.fallback = fallback
+        self.fallbackGenerator = fallbackGenerator
     }
-
-    func generateContent(from context: VisionUnderstandingContext) async throws -> GeneratedCardContent {
-        debugLog("Model availability: \(String(describing: model.availability))")
-
+    
+    func streamGeneratedContent(
+        from context: VisionUnderstandingContext
+    ) -> AsyncThrowingStream<CardGenerationEvent, Error> {
         guard model.isAvailable else {
-            let message = Self.unavailableMessage(for: model.availability)
-            debugLog("\(message) Falling back to MockCardGenerator content.")
-            return try await fallback.generateContent(from: context)
+            logGenerationMode(.fallbackMock)
+            return fallbackGenerator.streamGeneratedContent(from: context)
         }
-
-        let prompt = Self.contentPrompt(for: context)
-        debugLog("Content prompt:\n\(prompt)")
-
-        let session = LanguageModelSession(
-            model: model,
-            instructions: Self.contentInstructions
-        )
-
-        do {
-            let response = try await session.respond(
-                to: prompt,
-                generating: AppleFoundationGeneratedCardContent.self,
-                options: Self.generationOptions
-            )
-            let content = response.content.generatedContent(context: context)
-            debugLog("Generated content: summary=\(content.summary), planTitle=\(content.planTitle)")
-            return content
-        } catch {
-            debugLog("Foundation Models content generation failed: \(type(of: error)): \(String(describing: error))")
-            throw error
-        }
-    }
-
-    func generateCard(from context: VisionUnderstandingContext) async throws -> ActionCard {
-        let generatedCard = try await generateStructuredCard(from: context)
-        return try actionCard(from: generatedCard, context: context)
-    }
-
-    func streamCard(from context: VisionUnderstandingContext) -> AsyncThrowingStream<CardGenerationEvent, Error> {
-        AsyncThrowingStream { continuation in
+        
+        return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    debugLog("Model availability: \(String(describing: model.availability))")
-
-                    guard model.isAvailable else {
-                        let message = Self.unavailableMessage(for: model.availability)
-                        debugLog(message)
-                        throw ServiceError.unavailable(message)
-                    }
-
-                    let prompt = Self.prompt(for: context)
-                    debugLog("Streaming prompt:\n\(prompt)")
-
+                    logGenerationMode(.foundationModels)
                     let session = LanguageModelSession(
                         model: model,
-                        instructions: Self.instructions
+                        instructions: Self.contentInstructions
                     )
-
-                    var latestDraft: AppleFoundationGeneratedActionCard.PartiallyGenerated?
+                    
                     let stream = session.streamResponse(
-                        to: prompt,
-                        generating: AppleFoundationGeneratedActionCard.self,
+                        to: Self.contentPrompt(for: context),
+                        generating: AppleFoundationGeneratedCardContent.self,
                         options: Self.generationOptions
                     )
-
+                    
+                    var latestDraft: AppleFoundationGeneratedCardContent.PartiallyGenerated?
+                    
                     for try await partialResponse in stream {
                         latestDraft = partialResponse.content
-                        continuation.yield(.partial(partialResponse.content.generationPartial))
+                        continuation.yield(.partialContent(partialResponse.content.generatedContentPartial))
                     }
-
+                    
                     guard let latestDraft else {
                         throw ServiceError.invalidGeneratedCard
                     }
-
-                    let metadata = CardMetadata(
-                        sourceImage: context.sourceImage,
-                        confidence: context.confidence,
-                        confidenceScore: context.confidenceScore
-                    )
-                    let actionCard = try await MainActor.run {
-                        try latestDraft.actionCard(metadata: metadata, context: context)
-                    }
-                    continuation.yield(.completed(actionCard))
+                    
+                    let content = try latestDraft.generatedContent()
+                    let card = makeActionCard(from: content, context: context)
+                    
+                    continuation.yield(.completed(card: card, content: content))
                     continuation.finish()
                 } catch {
-                    debugLog("Foundation Models stream failed: \(type(of: error)): \(String(describing: error))")
                     continuation.finish(throwing: error)
                 }
             }
-
+            
             continuation.onTermination = { _ in
                 task.cancel()
             }
         }
     }
-
-    private func generateStructuredCard(from context: VisionUnderstandingContext) async throws -> AppleFoundationGeneratedActionCard {
-        debugLog("Model availability: \(String(describing: model.availability))")
-
-        guard model.isAvailable else {
-            let message = Self.unavailableMessage(for: model.availability)
-            debugLog(message)
-            throw ServiceError.unavailable(message)
-        }
-
-        let prompt = Self.prompt(for: context)
-        debugLog("Prompt:\n\(prompt)")
-
-        let session = LanguageModelSession(
-            model: model,
-            instructions: Self.instructions
-        )
-
-        let generatedCard: AppleFoundationGeneratedActionCard
-        do {
-            let response = try await session.respond(
-                to: prompt,
-                generating: AppleFoundationGeneratedActionCard.self,
-                options: Self.generationOptions
-            )
-            generatedCard = response.content
-            debugLog("Generated structured content: \(generatedCard.debugSummary)")
-        } catch {
-            debugLog("Foundation Models response failed: \(type(of: error)): \(String(describing: error))")
-            throw error
-        }
-
-        return generatedCard
-    }
-
-    private func actionCard(
-        from generatedCard: AppleFoundationGeneratedActionCard,
+    
+    private func makeActionCard(
+        from content: GeneratedCardContent,
         context: VisionUnderstandingContext
-    ) throws -> ActionCard {
-        do {
-            let actionCard = try generatedCard.actionCard(
-                metadata: CardMetadata(
-                    sourceImage: context.sourceImage,
-                    confidence: context.confidence,
-                    confidenceScore: context.confidenceScore
-                ),
-                context: context
-            )
-            debugLog("Mapped generated content to ActionCard: type=\(actionCard.type.rawValue), title=\(actionCard.title)")
-            return actionCard
-        } catch {
-            debugLog("Generated content could not be mapped to ActionCard: \(type(of: error)): \(String(describing: error))")
-            throw error
+    ) -> ActionCard {
+        let baseCard = MockCardGenerator.placeholderCard(from: context)
+        
+        switch baseCard {
+        case .note(var note):
+            note.title = context.fallbackTitle
+            note.summary = content.summary
+            note.bullets = content.planSteps.map(\.title).nonEmpty(or: note.bullets)
+            note.items = content.recommendedActions.map(\.title)
+            note.metadata.updatedAt = .now
+            return .note(note)
+        case .reminder(var reminder):
+            reminder.title = context.fallbackTitle
+            reminder.notes = content.summary
+            reminder.location = context.entityValues(for: .location).first
+            reminder.dueDate = context.firstDetectedDate
+            reminder.metadata.updatedAt = .now
+            return .reminder(reminder)
+        case .calendar(var calendar):
+            let startDate = context.firstDetectedDate ?? calendar.startDate
+            calendar.title = context.fallbackTitle
+            calendar.startDate = startDate
+            calendar.endDate = max(calendar.endDate, startDate.addingTimeInterval(60 * 60))
+            calendar.location = context.entityValues(for: .location).first
+            calendar.notes = content.summary
+            calendar.metadata.updatedAt = .now
+            return .calendar(calendar)
+        case .shopping(var shopping):
+            shopping.productName = context.fallbackTitle
+            shopping.price = context.entityValues(for: .price).first
+            shopping.merchant = context.entityValues(for: .store).first
+            shopping.offer = context.entityValues(for: .promotion).first
+            shopping.notes = content.summary
+            shopping.metadata.updatedAt = .now
+            return .shopping(shopping)
+        case .job(var job):
+            job.company = context.entityValues(for: .company).first ?? job.company
+            job.role = context.fallbackTitle
+            job.skills = context.entityValues(for: .skill)
+            job.contact = context.entityValues(for: .contact).first
+            job.detail = content.planSteps.map(\.detail).joined(separator: "\n")
+            job.notes = content.summary
+            job.date = context.firstDetectedDate
+            job.metadata.updatedAt = .now
+            return .job(job)
         }
     }
-
-    private func debugLog(_ message: String) {
-        #if DEBUG
-        print("[CaptureFlow][AppleFoundationCardGenerator] \(message)")
-        #endif
+    
+    private enum GenerationMode: String {
+        case foundationModels = "FoundationModels"
+        case fallbackMock = "Fallback(Mock)"
     }
-
-    private static let instructions = """
-    You turn local image analysis context into one editable CaptureFlow ActionCard.
-    Use only facts present in the provided context. Do not invent people, dates,
-    locations, prices, companies, or contact details. If a value is unknown, leave
-    the matching optional field empty.
-
-    Prefer evidence over interpretation. Avoid subjective judgments such as fit,
-    importance, urgency, intent, or likelihood unless those words appear in the
-    detected text. Notes should preserve useful context from the image, not tell
-    the user what to do. Write notes as 1-3 concise sentences.
-    """
-
+    
+    private func logGenerationMode(_ mode: GenerationMode) {
+#if DEBUG
+        print("[CaptureFlow][CardGenerator] Mode=\(mode.rawValue)")
+#endif
+    }
+    
     private static let contentInstructions = """
     You turn local image understanding context into GeneratedCardContent for CaptureFlow.
-    Use only facts present in the provided context. Do not invent people, dates,
-    locations, prices, companies, stores, URLs, contact details, salary, deadlines,
-    or attendees. If a useful value is not present, put that gap in missingInfo.
-
-    keyDetails must be grounded in entities. planSteps must be grounded in
-    possibleActions and recommendedPlanTitle. draftOutput must be grounded in
-    draftIntent. sourceReasoning must be grounded in evidence. Keep the personal
-    note as a placeholder, not a generated opinion.
+    
+    Use the provided context as the only factual source.
+    You may rewrite, combine, prioritize, and simplify supported information to make the result useful.
+    Do not invent people, dates, locations, prices, companies, stores, URLs, contact details, salary, deadlines, or attendees.
+    
+    Write for a user-facing action card:
+    - concise
+    - practical
+    - specific
+    - action-oriented
+    - no filler
+    - no generic assistant phrasing
+    
+    If useful information is missing or uncertain, put it in missingInfo.
+    If a field has no supported content, return an empty string or an empty array.
     """
-
+    
     private static let generationOptions = GenerationOptions(
         sampling: .greedy,
-        temperature: 0.2,
-        maximumResponseTokens: 1200
+        temperature: 0.2
     )
-
-    private static func prompt(for context: VisionUnderstandingContext) -> String {
-        """
-        Build a \(context.resolvedCardType.rawValue) card from this local image understanding context.
-        Use ISO 8601 date-time strings with timezone when date fields are present.
-        Prefer Asia/Taipei timezone if the context does not include a timezone.
-        Fill notes with card-specific context:
-        - Reminder: what the reminder is about, plus explicit date, time, and place evidence.
-        - Calendar: agenda, venue, attendees, or event details visible in the image.
-        - Note: summarize the captured text and keep concrete key points.
-        - Shopping: product, merchant, price, offer, and visible purchase context.
-        - Job: role, company, requirements, contact, location, compensation, and application details.
-        For job cards, only fill detail when the image explicitly includes an application
-        instruction, contact method, deadline, interview detail, or other specific job detail.
-        Only fill dueDate when the image explicitly includes a relevant date.
-
-        Requested card type: \(context.requestedCardType.rawValue)
-        Resolved card type: \(context.resolvedCardType.rawValue)
-        Scene title: \(context.sceneTitle)
-        Scene summary: \(context.sceneSummary)
-        User intent guess: \(context.userIntentGuess)
-        Visible text: \(context.visibleText.joined(separator: " | "))
-        Visual objects: \(context.visualObjects.joined(separator: " | "))
-        Layout description: \(context.layoutDescription)
-        Entities: \(context.entities.promptLines)
-        Possible actions: \(context.possibleActions.promptLines)
-        Constraints: \(context.constraints.joined(separator: " | "))
-        Missing info: \(context.missingInfo.joined(separator: " | "))
-        Recommended plan title: \(context.recommendedPlanTitle)
-        Draft intent: \(context.draftIntent)
-        Confidence score: \(context.confidenceScore)
-        Evidence: \(context.evidence.joined(separator: " | "))
-        """
-    }
-
+    
     private static func contentPrompt(for context: VisionUnderstandingContext) -> String {
-        """
-        Build GeneratedCardContent from this local image understanding context.
-        The selected card type is represented by requestedCardType when it is not auto.
-
-        Required output shape:
-        - summary: concise image-grounded summary.
-        - planTitle: use or refine recommendedPlanTitle without adding new facts.
-        - planSteps: derive from possibleActions and recommendedPlanTitle.
-        - keyDetails: derive from entities only.
-        - recommendedActions: derive from possibleActions only.
-        - draftOutput: derive from draftIntent only.
-        - missingInfo: include only missing or uncertain info from missingInfo and constraints.
-        - sourceReasoning: derive from evidence only.
-        - personalNotePlaceholder: placeholder text only.
-
-        Requested card type: \(context.requestedCardType.rawValue)
-        Resolved card type: \(context.resolvedCardType.rawValue)
-        Scene title: \(context.sceneTitle)
-        Scene summary: \(context.sceneSummary)
-        User intent guess: \(context.userIntentGuess)
-        Visible text: \(context.visibleText.joined(separator: " | "))
-        Visual objects: \(context.visualObjects.joined(separator: " | "))
-        Layout description: \(context.layoutDescription)
-        Entities: \(context.entities.promptLines)
-        Possible actions: \(context.possibleActions.promptLines)
-        Constraints: \(context.constraints.joined(separator: " | "))
-        Missing info: \(context.missingInfo.joined(separator: " | "))
-        Recommended plan title: \(context.recommendedPlanTitle)
-        Draft intent: \(context.draftIntent)
-        Confidence score: \(context.confidenceScore)
-        Evidence: \(context.evidence.joined(separator: " | "))
-        """
-    }
-
-    private static func unavailableMessage(
-        for availability: SystemLanguageModel.Availability
-    ) -> String {
-        switch availability {
-        case .available:
-            "Apple Foundation Models is available."
-        case .unavailable(let reason):
-            "Apple Foundation Models is unavailable: \(String(describing: reason))"
+        let visibleText = joinedPromptValues(context.visibleText)
+        let missingInfo = joinedPromptValues(context.missingInfo)
+        let evidence = joinedPromptValues(context.evidence)
+        let visualObjects = joinedPromptValues(context.visualObjects)
+        let constraints = joinedPromptValues(context.constraints)
+        
+        var lines: [String] = [
+            "Build GeneratedCardContent from the provided local image understanding context.",
+            "",
+            "The selected card type is represented by requestedCardType when it is not auto.",
+            "Use the provided context as the only factual source.",
+            "You may rewrite, combine, prioritize, and simplify supported information to make the result useful.",
+            "Do not invent people, dates, locations, prices, companies, stores, URLs, contact details, salary, deadlines, attendees, or tasks.",
+            "",
+            "Output quality goals:",
+            "- Make the result useful as a user-facing action card, not a raw extraction.",
+            "- Be concise, specific, practical, and action-oriented.",
+            "- Prefer concrete details over generic descriptions.",
+            "- Do not include filler or meta commentary.",
+            "- Do not start with generic phrases like \"This image appears to show\" unless uncertainty is important.",
+            "- If a field has no supported content, return an empty string or an empty array.",
+            "- If useful information is missing or uncertain, put that gap in missingInfo instead of guessing.",
+            "",
+            "Required output shape:",
+            "",
+            "summary:",
+            "- First summarize what the image is about.",
+            "- Include important visible facts such as product, price, and promotion.",
+            "- Mention a next action only in the final sentence and only when supported.",
+            "",
+            "planTitle:",
+            "- Use recommendedPlanTitle when it is suitable.",
+            "- You may lightly refine wording for clarity.",
+            "- Do not add new facts.",
+            "",
+            "planSteps:",
+            "- Create practical steps based mainly on possibleActions, requestedCardType, and recommendedPlanTitle.",
+            "- You may reference entities, missingInfo, and constraints only when needed to make the steps clearer or more useful.",
+            "- If an action depends on missing information, turn it into a clarification step instead of dropping it.",
+            "- Do not create steps that require unsupported facts.",
+            "",
+            "keyDetails:",
+            "- Use entities as the primary factual source.",
+            "- You may also include important visibleText items when they are clear product facts.",
+            "- Rewrite details into concise, user-facing labels and values.",
+            "- Do not include evidence explanations here.",
+            "",
+            "missingInfo:",
+            "- Include only information that is explicitly missing, uncertain, or constrained by missingInfo and constraints.",
+            "- Rewrite raw keywords into short user-facing sentences.",
+            "- Prefer concrete gaps such as \"Store name is not visible\" over raw labels such as \"store\".",
+            "- If an action depends on missing information, mention the missing requirement here instead of guessing.",
+            "- Do not add generic missing items.",
+            "",
+            "recommendedActions:",
+            "- Use possibleActions as the factual source.",
+            "- Rewrite them into clear action labels or short actionable sentences.",
+            "- Do not add new actions.",
+            "",
+            "sourceReasoning:",
+            "- Use evidence only.",
+            "- Briefly explain what visible clues support the generated content.",
+            "- Do not include hidden assumptions.",
+            "",
+            "Context:",
+            "Requested card type: \(context.requestedCardType.rawValue)",
+            "Resolved card type: \(context.resolvedCardType.rawValue)",
+            "Scene title: \(context.sceneTitle)",
+            "Visible text: \(visibleText)",
+            "Entities: \(context.entities.promptLines)",
+            "Possible actions: \(context.possibleActions.promptLines)",
+            "Missing info: \(missingInfo)",
+            "Recommended plan title: \(context.recommendedPlanTitle)",
+            "Evidence: \(evidence)"
+        ]
+        
+        if let sceneSummary = context.sceneSummary.nonEmpty {
+            lines.append("Scene summary: \(sceneSummary)")
         }
+        
+        if let userIntentGuess = context.userIntentGuess.nonEmpty {
+            lines.append("User intent guess: \(userIntentGuess)")
+        }
+        
+        if visualObjects != "None" {
+            lines.append("Visual objects: \(visualObjects)")
+        }
+        
+        if let layoutDescription = context.layoutDescription.nonEmpty {
+            lines.append("Layout description: \(layoutDescription)")
+        }
+        
+        if constraints != "None" {
+            lines.append("Constraints: \(constraints)")
+        }
+        
+        lines.append("Confidence score: \(context.confidenceScore)")
+        
+        return lines.joined(separator: "\n")
+    }
+    
+    private static func joinedPromptValues(_ values: [String]) -> String {
+        let cleaned = values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return cleaned.isEmpty ? "None" : cleaned.joined(separator: " | ")
     }
 }
 
 @available(iOS 26.0, *)
 @Generable
 private struct AppleFoundationGeneratedCardContent {
-    @Guide(description: "Concise summary grounded in sceneSummary, visibleText, entities, and evidence only.")
     var summary: String
-
-    @Guide(description: "Plan title grounded in recommendedPlanTitle and requested/resolved card type only.")
     var planTitle: String
-
-    @Guide(description: "Plan steps derived from possibleActions and recommendedPlanTitle.", .maximumCount(6))
     var planSteps: [AppleFoundationGeneratedPlanStep]
-
-    @Guide(description: "Key details derived from entities only.", .maximumCount(12))
     var keyDetails: [AppleFoundationGeneratedField]
-
-    @Guide(description: "Recommended actions derived from possibleActions only.", .maximumCount(6))
     var recommendedActions: [AppleFoundationGeneratedAction]
-
-    @Guide(description: "Draft output derived from draftIntent only.")
-    var draftOutput: AppleFoundationGeneratedDraft
-
-    @Guide(description: "Information gaps from missingInfo and constraints only.", .maximumCount(8))
     var missingInfo: [String]
-
-    @Guide(description: "Reasoning bullets derived from evidence only.", .maximumCount(8))
     var sourceReasoning: [String]
-
-    @Guide(description: "A placeholder for the user's own note. Do not write a personal note.")
-    var personalNotePlaceholder: String
-
-    func generatedContent(context: VisionUnderstandingContext) -> GeneratedCardContent {
-        let fallback = GeneratedCardContent.fallback(from: context)
-
-        return GeneratedCardContent(
-            summary: summary.nonEmpty(or: context.sceneSummary),
-            planTitle: planTitle.nonEmpty(or: context.recommendedPlanTitle),
-            planSteps: context.generatedPlanSteps,
-            keyDetails: context.generatedKeyDetails,
-            recommendedActions: context.generatedRecommendedActions,
-            draftOutput: GeneratedDraft(
-                type: context.generatedDraftType,
-                title: draftOutput.title.nonEmpty(or: context.recommendedPlanTitle),
-                body: draftOutput.body.nonEmpty(or: context.draftIntent)
-            ),
-            missingInfo: context.generatedMissingInfo.nonEmpty(or: fallback.missingInfo),
-            sourceReasoning: context.evidence.nonEmpty(or: fallback.sourceReasoning),
-            personalNotePlaceholder: personalNotePlaceholder.nonEmpty(or: fallback.personalNotePlaceholder)
-        )
-    }
 }
 
 @available(iOS 26.0, *)
@@ -357,14 +297,6 @@ private struct AppleFoundationGeneratedAction {
     var title: String
     var description: String
     var actionType: AppleFoundationGeneratedActionType
-}
-
-@available(iOS 26.0, *)
-@Generable
-private struct AppleFoundationGeneratedDraft {
-    var type: AppleFoundationGeneratedDraftType
-    var title: String
-    var body: String
 }
 
 @available(iOS 26.0, *)
@@ -401,324 +333,178 @@ private enum AppleFoundationGeneratedEntityType {
 }
 
 @available(iOS 26.0, *)
-@Generable
-private enum AppleFoundationGeneratedDraftType {
-    case reminder
-    case calendar
-    case note
-    case shopping
-    case job
-    case summary
-    case custom
-}
-
-@available(iOS 26.0, *)
-@Generable
-private struct AppleFoundationGeneratedActionCard {
-    @Guide(description: "The exact card type to create.")
-    var cardType: AppleFoundationGeneratedCardType
-
-    @Guide(description: "Short user-facing title.")
-    var title: String
-
-    @Guide(description: "1-3 concise sentences of useful context grounded in the detected image text. Do not invent advice or subjective judgments.")
-    var notes: String?
-
-    @Guide(description: "ISO 8601 date-time for an explicit relevant date in the context, or nil.")
-    var dueDate: String?
-
-    @Guide(description: "ISO 8601 calendar start date-time, or nil.")
-    var startDate: String?
-
-    @Guide(description: "ISO 8601 calendar end date-time, or nil.")
-    var endDate: String?
-
-    @Guide(description: "Detected or inferred location from the context only.")
-    var location: String?
-
-    @Guide(description: "Product or offer name for shopping cards.")
-    var productName: String?
-
-    @Guide(description: "Detected price string for shopping cards.")
-    var price: String?
-
-    @Guide(description: "Detected merchant or store name.")
-    var merchant: String?
-
-    @Guide(description: "Detected shopping offer or discount.")
-    var offer: String?
-
-    @Guide(description: "Company name for job cards.")
-    var company: String?
-
-    @Guide(description: "Role title for job cards.")
-    var role: String?
-
-    @Guide(description: "Skills from the job context.", .maximumCount(8))
-    var skills: [String]
-
-    @Guide(description: "Contact detail from the context.")
-    var contact: String?
-
-    @Guide(description: "Explicit detail, instruction, or requirement from the image text, otherwise nil.")
-    var detail: String?
-
-    @Guide(description: "Summary for note cards.")
-    var summary: String?
-
-    @Guide(description: "Important note bullets.", .maximumCount(6))
-    var bullets: [String]
-
-    @Guide(description: "Concrete list items from the image text.", .maximumCount(6))
-    var items: [String]
-
-    var debugSummary: String {
-        [
-            "cardType=\(cardType)",
-            "title=\(title)",
-            "notes=\(notes ?? "nil")",
-            "dueDate=\(dueDate ?? "nil")",
-            "startDate=\(startDate ?? "nil")",
-            "endDate=\(endDate ?? "nil")",
-            "location=\(location ?? "nil")",
-            "productName=\(productName ?? "nil")",
-            "price=\(price ?? "nil")",
-            "merchant=\(merchant ?? "nil")",
-            "offer=\(offer ?? "nil")",
-            "company=\(company ?? "nil")",
-            "role=\(role ?? "nil")",
-            "skills=\(skills)",
-            "contact=\(contact ?? "nil")",
-            "detail=\(detail ?? "nil")",
-            "summary=\(summary ?? "nil")",
-            "bullets=\(bullets)",
-            "items=\(items)"
-        ].joined(separator: ", ")
-    }
-
-    func actionCard(
-        metadata: CardMetadata,
-        context: VisionUnderstandingContext
-    ) throws -> ActionCard {
-        switch resolvedType(context: context) {
-        case .auto:
-            throw ServiceError.unsupportedCardType(.auto)
-        case .reminder:
-            return .reminder(
-                ReminderCard(
-                    metadata: metadata,
-                    title: title.nonEmpty(or: context.fallbackTitle),
-                    notes: notes.nonEmpty(or: context.contextNotes(for: .reminder)),
-                    dueDate: Date.captureFlowDate(from: dueDate),
-                    location: location.nonEmpty,
-                    priority: .none
-                )
-            )
-        case .calendar:
-            guard let startDate = Date.captureFlowDate(from: startDate) else {
-                throw ServiceError.invalidGeneratedCard
-            }
-
-            let endDate = Date.captureFlowDate(from: endDate)
-                ?? startDate.addingTimeInterval(60 * 60)
-
-            return .calendar(
-                CalendarCard(
-                    metadata: metadata,
-                    title: title.nonEmpty(or: context.fallbackTitle),
-                    startDate: startDate,
-                    endDate: max(endDate, startDate.addingTimeInterval(30 * 60)),
-                    location: location.nonEmpty,
-                    notes: notes.nonEmpty(or: context.contextNotes(for: .calendar))
-                )
-            )
-        case .note:
-            return .note(
-                NoteCard(
-                    metadata: metadata,
-                    title: title.nonEmpty(or: context.fallbackTitle),
-                    summary: summary.nonEmpty(or: notes.nonEmpty(or: context.contextNotes(for: .note))),
-                    bullets: bullets.nonEmpty(or: context.visibleText),
-                    items: items.nonEmpty(or: [])
-                )
-            )
-        case .shopping:
-            return .shopping(
-                ShoppingCard(
-                    metadata: metadata,
-                    productName: productName.nonEmpty(or: title.nonEmpty(or: context.fallbackTitle)),
-                    price: price.nonEmpty ?? context.entityValues(for: .price).first,
-                    merchant: merchant.nonEmpty,
-                    offer: offer.nonEmpty,
-                    date: Date.captureFlowDate(from: dueDate),
-                    notes: notes.nonEmpty(or: context.contextNotes(for: .shopping))
-                )
-            )
-        case .job:
-            return .job(
-                JobCard(
-                    metadata: metadata,
-                    company: company.nonEmpty(or: context.entityValues(for: .company).first ?? "Unknown company"),
-                    role: role.nonEmpty(or: title.nonEmpty(or: "Job opportunity")),
-                    skills: skills.nonEmpty(or: context.entityValues(for: .skill)),
-                    contact: contact.nonEmpty,
-                    detail: detail.nonEmpty(or: ""),
-                    date: Date.captureFlowDate(from: dueDate),
-                    notes: notes.nonEmpty(or: context.contextNotes(for: .job))
-                )
-            )
-        }
-    }
-
-    private func resolvedType(context: VisionUnderstandingContext) -> CardType {
-        if context.resolvedCardType == .auto {
-            return cardType.cardType
-        }
-
-        return context.resolvedCardType
-    }
-}
-
-@available(iOS 26.0, *)
-private extension AppleFoundationGeneratedActionCard.PartiallyGenerated {
-    var generationPartial: CardGenerationPartial {
-        let fallbackTitle = [
-            title,
-            productName,
-            role,
-            company
-        ]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty }
-
-        let fallbackSummary = [
-            summary,
-            notes,
-            detail,
-            offer
-        ]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty }
-
-        return CardGenerationPartial(
-            title: fallbackTitle,
-            summary: fallbackSummary
+private extension AppleFoundationGeneratedCardContent.PartiallyGenerated {
+    var generatedContentPartial: GeneratedContentPartial {
+        GeneratedContentPartial(
+            summary: summary.nonEmpty,
+            planTitle: planTitle.nonEmpty,
+            planSteps: mappedPlanSteps,
+            recommendedActions: mappedRecommendedActions,
+            keyDetails: mappedKeyDetails,
+            missingInfo: mappedMissingInfo,
+            sourceReasoning: mappedSourceReasoning
         )
     }
-
-    @MainActor
-    func actionCard(
-        metadata: CardMetadata,
-        context: VisionUnderstandingContext
-    ) throws -> ActionCard {
-        switch resolvedType(context: context) {
-        case .auto:
-            throw ServiceError.unsupportedCardType(.auto)
-        case .reminder:
-            return .reminder(
-                ReminderCard(
-                    metadata: metadata,
-                    title: title.nonEmpty(or: context.fallbackTitle),
-                    notes: notes.nonEmpty(or: context.contextNotes(for: .reminder)),
-                    dueDate: Date.captureFlowDate(from: dueDate),
-                    location: location.nonEmpty,
-                    priority: .none
-                )
-            )
-        case .calendar:
-            guard let startDate = Date.captureFlowDate(from: startDate) else {
-                throw ServiceError.invalidGeneratedCard
-            }
-
-            let endDate = Date.captureFlowDate(from: endDate)
-                ?? startDate.addingTimeInterval(60 * 60)
-
-            return .calendar(
-                CalendarCard(
-                    metadata: metadata,
-                    title: title.nonEmpty(or: context.fallbackTitle),
-                    startDate: startDate,
-                    endDate: max(endDate, startDate.addingTimeInterval(30 * 60)),
-                    location: location.nonEmpty,
-                    notes: notes.nonEmpty(or: context.contextNotes(for: .calendar))
-                )
-            )
-        case .note:
-            return .note(
-                NoteCard(
-                    metadata: metadata,
-                    title: title.nonEmpty(or: context.fallbackTitle),
-                    summary: summary.nonEmpty(or: notes.nonEmpty(or: context.contextNotes(for: .note))),
-                    bullets: arrayValue(bullets, or: context.visibleText),
-                    items: arrayValue(items, or: [])
-                )
-            )
-        case .shopping:
-            return .shopping(
-                ShoppingCard(
-                    metadata: metadata,
-                    productName: productName.nonEmpty(or: title.nonEmpty(or: context.fallbackTitle)),
-                    price: price.nonEmpty ?? context.entityValues(for: .price).first,
-                    merchant: merchant.nonEmpty,
-                    offer: offer.nonEmpty,
-                    date: Date.captureFlowDate(from: dueDate),
-                    notes: notes.nonEmpty(or: context.contextNotes(for: .shopping))
-                )
-            )
-        case .job:
-            return .job(
-                JobCard(
-                    metadata: metadata,
-                    company: company.nonEmpty(or: context.entityValues(for: .company).first ?? "Unknown company"),
-                    role: role.nonEmpty(or: title.nonEmpty(or: "Job opportunity")),
-                    skills: arrayValue(skills, or: context.entityValues(for: .skill)),
-                    contact: contact.nonEmpty,
-                    detail: detail.nonEmpty(or: ""),
-                    date: Date.captureFlowDate(from: dueDate),
-                    notes: notes.nonEmpty(or: context.contextNotes(for: .job))
-                )
-            )
+    
+    func generatedContent() throws -> GeneratedCardContent {
+        guard let summary = summary.nonEmpty,
+              let planTitle = planTitle.nonEmpty
+        else {
+            throw ServiceError.invalidGeneratedCard
         }
+        
+        let planSteps = mappedPlanSteps
+        let recommendedActions = mappedRecommendedActions
+        
+        guard !planSteps.isEmpty, !recommendedActions.isEmpty else {
+            throw ServiceError.invalidGeneratedCard
+        }
+        
+        return GeneratedCardContent(
+            summary: summary,
+            planTitle: planTitle,
+            planSteps: planSteps,
+            keyDetails: mappedKeyDetails,
+            recommendedActions: recommendedActions,
+            missingInfo: mappedMissingInfo,
+            sourceReasoning: mappedSourceReasoning,
+            personalNotePlaceholder: "Add your own note..."
+        )
     }
-
-    private func resolvedType(context: VisionUnderstandingContext) -> CardType {
-        if context.resolvedCardType == .auto {
-            return cardType?.cardType ?? .note
-        }
-
-        return context.resolvedCardType
+    
+    private var mappedPlanSteps: [GeneratedPlanStep] {
+        guard let planSteps else { return [] }
+        return planSteps.compactMap(\.generatedPlanStep)
     }
+    
+    private var mappedRecommendedActions: [GeneratedAction] {
+        guard let recommendedActions else { return [] }
+        return recommendedActions.compactMap(\.generatedAction)
+    }
+    
+    private var mappedKeyDetails: [GeneratedField] {
+        guard let keyDetails else { return [] }
+        return keyDetails.compactMap(\.generatedField)
+    }
+    
+    private var mappedMissingInfo: [String] {
+        guard let missingInfo else { return [] }
+        return missingInfo.compactMap(\.nonEmpty)
+    }
+    
+    private var mappedSourceReasoning: [String] {
+        guard let sourceReasoning else { return [] }
+        return sourceReasoning.compactMap(\.nonEmpty)
+    }
+    
+}
 
-    private func arrayValue(_ value: [String]?, or fallback: [String]) -> [String] {
-        guard let value, !value.isEmpty else {
-            return fallback
+@available(iOS 26.0, *)
+private extension AppleFoundationGeneratedPlanStep.PartiallyGenerated {
+    var generatedPlanStep: GeneratedPlanStep? {
+        guard let title = title.nonEmpty ?? detail.nonEmpty else {
+            return nil
         }
-
-        return value
+        
+        return GeneratedPlanStep(
+            title: title,
+            detail: detail.nonEmpty(or: title),
+            actionType: actionType?.visionActionType ?? .custom
+        )
     }
 }
 
 @available(iOS 26.0, *)
-@Generable
-private enum AppleFoundationGeneratedCardType {
-    case reminder
-    case calendar
-    case note
-    case shopping
-    case job
+private extension AppleFoundationGeneratedAction.PartiallyGenerated {
+    var generatedAction: GeneratedAction? {
+        guard let title = title.nonEmpty else {
+            return nil
+        }
+        
+        return GeneratedAction(
+            title: title,
+            description: description.nonEmpty(or: title),
+            actionType: actionType?.visionActionType ?? .custom
+        )
+    }
+}
 
-    var cardType: CardType {
+@available(iOS 26.0, *)
+private extension AppleFoundationGeneratedField.PartiallyGenerated {
+    var generatedField: GeneratedField? {
+        guard let label = label.nonEmpty,
+              let value = value.nonEmpty
+        else {
+            return nil
+        }
+        
+        return GeneratedField(
+            label: label,
+            value: value,
+            type: type?.visionEntityType ?? .unknown,
+            confidence: (confidence ?? 0.5).clamped(to: 0...1)
+        )
+    }
+}
+
+@available(iOS 26.0, *)
+private extension AppleFoundationGeneratedActionType {
+    var visionActionType: VisionActionType {
         switch self {
+        case .save:
+                .save
         case .reminder:
-            .reminder
+                .reminder
         case .calendar:
-            .calendar
+                .calendar
+        case .copy:
+                .copy
+        case .share:
+                .share
+        case .compare:
+                .compare
+        case .followUp:
+                .followUp
+        case .custom:
+                .custom
+        }
+    }
+}
+
+@available(iOS 26.0, *)
+private extension AppleFoundationGeneratedEntityType {
+    var visionEntityType: VisionEntityType {
+        switch self {
+        case .product:
+                .product
+        case .price:
+                .price
+        case .promotion:
+                .promotion
+        case .store:
+                .store
+        case .date:
+                .date
+        case .time:
+                .time
+        case .location:
+                .location
+        case .company:
+                .company
+        case .role:
+                .role
+        case .skill:
+                .skill
+        case .url:
+                .url
+        case .contact:
+                .contact
         case .note:
-            .note
-        case .shopping:
-            .shopping
-        case .job:
-            .job
+                .note
+        case .event:
+                .event
+        case .unknown:
+                .unknown
         }
     }
 }
@@ -729,58 +515,12 @@ private extension VisionUnderstandingContext {
     var fallbackTitle: String {
         sceneTitle.nonEmpty(or: recommendedPlanTitle.nonEmpty(or: visibleText.first ?? "Untitled card"))
     }
-
-    func contextNotes(for cardType: CardType) -> String {
-        let lines: [String?]
-
-        switch cardType {
-        case .auto:
-            lines = [
-                sceneSummary.nonEmpty,
-                visibleText.contextSentence(prefix: "Visible text"),
-                visualObjects.contextSentence(prefix: "Visible objects")
-            ]
-        case .reminder:
-            lines = [
-                sceneSummary.nonEmpty,
-                entityValues(for: .date).contextSentence(prefix: "Detected dates"),
-                entityValues(for: .time).contextSentence(prefix: "Detected times"),
-                entityValues(for: .location).contextSentence(prefix: "Detected locations"),
-                evidence.contextSentence(prefix: "Evidence")
-            ]
-        case .calendar:
-            lines = [
-                sceneSummary.nonEmpty,
-                entityValues(for: .event).contextSentence(prefix: "Events"),
-                entityValues(for: .date).contextSentence(prefix: "Detected dates"),
-                entityValues(for: .time).contextSentence(prefix: "Detected times"),
-                entityValues(for: .location).contextSentence(prefix: "Detected locations")
-            ]
-        case .note:
-            lines = [
-                sceneSummary.nonEmpty,
-                visibleText.contextSentence(prefix: "Captured text"),
-                entityValues(for: .note).contextSentence(prefix: "Key points")
-            ]
-        case .shopping:
-            lines = [
-                sceneSummary.nonEmpty,
-                entityValues(for: .product).contextSentence(prefix: "Products"),
-                entityValues(for: .price).contextSentence(prefix: "Detected prices"),
-                entityValues(for: .promotion).contextSentence(prefix: "Promotions")
-            ]
-        case .job:
-            lines = [
-                sceneSummary.nonEmpty,
-                entityValues(for: .company).contextSentence(prefix: "Companies mentioned"),
-                entityValues(for: .role).contextSentence(prefix: "Roles mentioned"),
-                entityValues(for: .skill).contextSentence(prefix: "Skills mentioned")
-            ]
-        }
-
-        return lines.compactMap { $0 }.prefix(3).joined(separator: " ")
+    
+    var firstDetectedDate: Date? {
+        let values = entityValues(for: .date) + entityValues(for: .time)
+        return values.compactMap(Date.captureFlowDate(from:)).first
     }
-
+    
     func entityValues(for type: VisionEntityType) -> [String] {
         entities
             .filter { $0.type == type }
@@ -793,7 +533,7 @@ private extension [VisionEntity] {
         let values = map {
             "\($0.type.rawValue): \($0.label)=\($0.value) (confidence \($0.confidence))"
         }
-
+        
         return values.isEmpty ? "None" : values.joined(separator: " | ")
     }
 }
@@ -803,79 +543,76 @@ private extension [VisionActionHint] {
         let values = map {
             "\($0.actionType.rawValue): \($0.title) - \($0.description)"
         }
-
+        
         return values.isEmpty ? "None" : values.joined(separator: " | ")
     }
 }
 
 private extension String? {
-    var nonEmpty: String? {
+    nonisolated var nonEmpty: String? {
         guard let value = self?.trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty
         else {
             return nil
         }
-
+        
         return value
     }
-
-    func nonEmpty(or fallback: String) -> String {
+    
+    nonisolated func nonEmpty(or fallback: String) -> String {
         nonEmpty ?? fallback
     }
 }
 
 private extension String {
-    var nonEmpty: String? {
+    nonisolated var nonEmpty: String? {
         trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self
     }
-
-    func nonEmpty(or fallback: String) -> String {
+    
+    nonisolated func nonEmpty(or fallback: String) -> String {
         nonEmpty ?? fallback
     }
 }
 
 private extension [String] {
-    func nonEmpty(or fallback: [String]) -> [String] {
+    nonisolated func nonEmpty(or fallback: [String]) -> [String] {
         let values = compactMap { $0.nonEmpty }
         return values.isEmpty ? fallback : values
     }
+}
 
-    func contextSentence(prefix: String) -> String? {
-        let values = compactMap { $0.nonEmpty }
-        guard !values.isEmpty else {
-            return nil
-        }
-
-        return "\(prefix): \(values.prefix(5).joined(separator: "; "))."
+private extension Double {
+    nonisolated func clamped(to range: ClosedRange<Double>) -> Double {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }
 
 private extension Date {
-    static func captureFlowDate(from value: String?) -> Date? {
+    nonisolated static func captureFlowDate(from value: String?) -> Date? {
         guard let value = value?.nonEmpty else {
             return nil
         }
-
+        
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [
             .withInternetDateTime,
             .withFractionalSeconds
         ]
-
+        
         if let date = isoFormatter.date(from: value) {
             return date
         }
-
+        
         isoFormatter.formatOptions = [.withInternetDateTime]
         if let date = isoFormatter.date(from: value) {
             return date
         }
-
+        
         let dateFormatter = DateFormatter()
         dateFormatter.calendar = Calendar(identifier: .gregorian)
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.timeZone = TimeZone(identifier: "Asia/Taipei")
-
+        
         for format in [
             "yyyy-MM-dd'T'HH:mm:ss",
             "yyyy-MM-dd'T'HH:mm",
@@ -887,7 +624,7 @@ private extension Date {
                 return date
             }
         }
-
+        
         return nil
     }
 }

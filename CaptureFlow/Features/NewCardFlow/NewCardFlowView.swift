@@ -2,8 +2,7 @@ import SwiftUI
 
 struct NewCardFlowView: View {
     private enum Route: Hashable {
-        case analysis(VisionAnalysisRequest)
-        case cardResult(VisionUnderstandingContext)
+        case cardResult(VisionAnalysisRequest)
     }
 
     let container: AppContainer
@@ -24,7 +23,7 @@ struct NewCardFlowView: View {
         NavigationStack(path: $path) {
             CapturePreviewView(
                 onAnalyze: { request in
-                    path.append(.analysis(request))
+                    path.append(.cardResult(request))
                 },
                 onCancel: {
                     finishFlow()
@@ -32,29 +31,20 @@ struct NewCardFlowView: View {
             )
             .navigationDestination(for: Route.self) { route in
                 switch route {
-                case .analysis(let request):
-                    AnalysisLoadingView(
-                        viewModel: AnalysisViewModel(container: container),
-                        request: request,
-                        onCompleted: { context in
-                            path = [.cardResult(context)]
-                        },
-                        onChangeImage: {
-                            path.removeAll()
-                        },
-                        onCancel: {
-                            finishFlow()
-                        }
-                    )
-                case .cardResult(let context):
+                case .cardResult(let request):
                     CardResultGenerationView(
-                        context: context,
+                        request: request,
+                        creditProvider: container.creditProvider,
+                        visionAnalyzer: container.visionAnalyzer,
                         cardGenerator: container.cardGenerator,
                         cardRepository: container.cardRepository,
                         reminderCreator: container.reminderCreator,
                         calendarCreator: container.calendarCreator,
                         onFinish: { savedCard in
                             finishFlow(savedCard: savedCard)
+                        },
+                        onChangeImage: {
+                            path.removeAll()
                         },
                         onCancel: {
                             finishFlow()

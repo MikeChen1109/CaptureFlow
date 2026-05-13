@@ -9,32 +9,42 @@ import SwiftUI
 
 struct ContentView: View {
     let container: AppContainer
+    @StateObject private var homeViewModel: HomeViewModel
     @State private var path: [AppRoute] = []
     @State private var isShowingNewCardFlow = false
-    @State private var homeRefreshTrigger = UUID()
+    @State private var isBootstrappingHome = true
     @State private var completionMessage: String?
 
     init(
         container: AppContainer = .prototype()
     ) {
         self.container = container
+        _homeViewModel = StateObject(wrappedValue: HomeViewModel(container: container))
     }
 
     var body: some View {
         NavigationStack(path: $path) {
-            HomeView(
-                viewModel: HomeViewModel(container: container),
-                refreshTrigger: homeRefreshTrigger,
-                onCreateCard: {
-                    isShowingNewCardFlow = true
-                },
-                onSelectCard: { card in
-                    path.append(.cardDetail(card.id))
-                },
-                onOpenSettings: {
-                    path.append(.settings)
+            Group {
+                if isBootstrappingHome {
+                    HomeLoadingView()
+                        .task {
+                            await bootstrapHome()
+                        }
+                } else {
+                    HomeView(
+                        viewModel: homeViewModel,
+                        onCreateCard: {
+                            isShowingNewCardFlow = true
+                        },
+                        onSelectCard: { card in
+                            path.append(.cardDetail(card.id))
+                        },
+                        onOpenSettings: {
+                            path.append(.settings)
+                        }
+                    )
                 }
-            )
+            }
             .navigationDestination(for: AppRoute.self) { route in
                 switch route {
                 case .cardDetail(let cardID):
@@ -43,6 +53,12 @@ struct ContentView: View {
                             cardID: cardID,
                             cardRepository: container.cardRepository
                         ),
+                        onCardDeleted: {
+                            homeViewModel.removeCardLocally(cardID)
+                            Task {
+                                await homeViewModel.refresh()
+                            }
+                        },
                         onClose: {
                             path.removeLast()
                         }
@@ -101,8 +117,31 @@ struct ContentView: View {
             return
         }
 
-        homeRefreshTrigger = UUID()
+        Task {
+            await homeViewModel.refresh()
+        }
         showCompletionMessage("\(savedCard.type.displayName) saved to Inbox")
+    }
+
+    private func bootstrapHome() async {
+        guard isBootstrappingHome else {
+            return
+        }
+
+        let start = Date()
+        await homeViewModel.loadIfNeeded()
+
+        let minimumDuration: TimeInterval = 0.65
+        let elapsed = Date().timeIntervalSince(start)
+        if elapsed < minimumDuration {
+            try? await Task.sleep(for: .seconds(minimumDuration - elapsed))
+        }
+
+        await MainActor.run {
+            withAnimation(.easeOut(duration: 0.28)) {
+                isBootstrappingHome = false
+            }
+        }
     }
 
     private func showCompletionMessage(_ message: String) {

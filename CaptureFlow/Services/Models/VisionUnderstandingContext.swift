@@ -16,7 +16,6 @@ struct VisionUnderstandingContext: Codable, Hashable, Identifiable, Sendable {
     var constraints: [String]
     var missingInfo: [String]
     var recommendedPlanTitle: String
-    var draftIntent: String
     var confidenceScore: Double
     var evidence: [String]
 
@@ -40,7 +39,6 @@ struct VisionUnderstandingContext: Codable, Hashable, Identifiable, Sendable {
         constraints: [String] = [],
         missingInfo: [String] = [],
         recommendedPlanTitle: String,
-        draftIntent: String,
         confidenceScore: Double,
         evidence: [String] = []
     ) {
@@ -59,7 +57,6 @@ struct VisionUnderstandingContext: Codable, Hashable, Identifiable, Sendable {
         self.constraints = constraints
         self.missingInfo = missingInfo
         self.recommendedPlanTitle = recommendedPlanTitle
-        self.draftIntent = draftIntent
         self.confidenceScore = confidenceScore
         self.evidence = evidence
     }

@@ -36,11 +36,11 @@ struct AppContainer: Sendable {
     }
 
     private static func defaultCardGenerator() -> any CardGenerating {
-        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
-            return AppleFoundationCardGenerator()
+            return AppleFoundationCardGenerator(
+                fallbackGenerator: MockCardGenerator()
+            )
         }
-        #endif
 
         return MockCardGenerator()
     }

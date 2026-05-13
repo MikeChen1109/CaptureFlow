@@ -1,21 +1,21 @@
 import Foundation
 
 struct MockCardGenerator: CardGenerating {
-    func generateContent(from context: VisionUnderstandingContext) async throws -> GeneratedCardContent {
-        GeneratedCardContent.fallback(from: context)
-    }
-
-    func streamCard(from context: VisionUnderstandingContext) -> AsyncThrowingStream<CardGenerationEvent, Error> {
+    func streamGeneratedContent(
+        from context: VisionUnderstandingContext
+    ) -> AsyncThrowingStream<CardGenerationEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let card = try await generateCard(from: context)
-                    let partial = card.generationPartial
-                    continuation.yield(.partial(CardGenerationPartial(title: partial.title, summary: nil)))
-                    try await Task.sleep(for: .milliseconds(420))
-                    continuation.yield(.partial(partial))
-                    try await Task.sleep(for: .milliseconds(320))
-                    continuation.yield(.completed(card))
+                    let content = GeneratedCardContent.fallback(from: context)
+                    let card = Self.placeholderCard(from: context)
+
+                    for partial in Self.partials(from: content) {
+                        continuation.yield(.partialContent(partial))
+                        try await Task.sleep(for: .milliseconds(120))
+                    }
+
+                    continuation.yield(.completed(card: card, content: content))
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -28,103 +28,75 @@ struct MockCardGenerator: CardGenerating {
         }
     }
 
-    func generateCard(from context: VisionUnderstandingContext) async throws -> ActionCard {
+    static func placeholderCard(from context: VisionUnderstandingContext) -> ActionCard {
         let metadata = CardMetadata(
             sourceImage: context.sourceImage,
             confidence: context.confidence,
             confidenceScore: context.confidenceScore
         )
 
+        let fallbackTitle = context.sceneTitle
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+            ? context.recommendedPlanTitle
+            : context.sceneTitle
+
         switch context.resolvedCardType {
-        case .auto:
-            throw ServiceError.unsupportedCardType(.auto)
+        case .auto, .note:
+            return .note(
+                NoteCard(
+                    metadata: metadata,
+                    title: fallbackTitle.isEmpty ? "Generated Note" : fallbackTitle,
+                    summary: context.sceneSummary
+                )
+            )
         case .reminder:
             return .reminder(
                 ReminderCard(
                     metadata: metadata,
-                    title: "Design meetup",
-                    notes: "Detected from event poster. Confirm the final agenda before attending.",
-                    dueDate: Self.date(year: 2026, month: 6, day: 15, hour: 19, minute: 30),
-                    location: "Taipei",
-                    priority: .medium
+                    title: fallbackTitle.isEmpty ? "Generated Reminder" : fallbackTitle
                 )
             )
         case .calendar:
-            let startDate = Self.date(year: 2026, month: 6, day: 18, hour: 14, minute: 0)
-
+            let startDate = Date()
             return .calendar(
                 CalendarCard(
                     metadata: metadata,
-                    title: "Product Review Sync",
+                    title: fallbackTitle.isEmpty ? "Generated Event" : fallbackTitle,
                     startDate: startDate,
-                    endDate: startDate.addingTimeInterval(60 * 60),
-                    location: "Taipei 101 Meeting Room",
-                    notes: "Review product decisions and follow-up items from the captured agenda."
-                )
-            )
-        case .note:
-            return .note(
-                NoteCard(
-                    metadata: metadata,
-                    title: "Launch Checklist",
-                    summary: "Whiteboard notes about the remaining work before the prototype demo.",
-                    bullets: [
-                        "Onboarding needs final polish",
-                        "Image import flow should be tested on device",
-                        "Demo script should focus on vision-to-action speed"
-                    ],
-                    items: [
-                        "Polish onboarding",
-                        "Test import flow",
-                        "Prepare demo script"
-                    ]
+                    endDate: startDate.addingTimeInterval(3600)
                 )
             )
         case .shopping:
             return .shopping(
                 ShoppingCard(
                     metadata: metadata,
-                    productName: "Orange Mechanical Keyboard",
-                    price: "NT$2,490",
-                    merchant: "Mock Store",
-                    offer: "Limited time discount",
-                    date: Self.date(year: 2026, month: 6, day: 12, hour: 10, minute: 0),
-                    notes: "Compare switch options before purchasing."
+                    productName: fallbackTitle.isEmpty ? "Generated Item" : fallbackTitle
                 )
             )
         case .job:
             return .job(
                 JobCard(
                     metadata: metadata,
-                    company: "Capture Labs",
-                    role: "iOS Engineer",
-                    skills: ["SwiftUI", "iOS", "AI features"],
-                    contact: "recruiting@capturelabs.example",
-                    detail: "Application contact and role requirements were visible in the captured posting.",
-                    date: Self.date(year: 2026, month: 6, day: 16, hour: 9, minute: 0),
-                    notes: "Posting mentions product-minded iOS engineering and AI capture workflows."
+                    company: "Unknown company",
+                    role: fallbackTitle.isEmpty ? "Generated Job" : fallbackTitle,
+                    detail: ""
                 )
             )
         }
     }
 
-    private static func date(
-        year: Int,
-        month: Int,
-        day: Int,
-        hour: Int,
-        minute: Int
-    ) -> Date {
-        var components = DateComponents()
-        components.calendar = Calendar(identifier: .gregorian)
-        components.timeZone = TimeZone(identifier: "Asia/Taipei")
-        components.year = year
-        components.month = month
-        components.day = day
-        components.hour = hour
-        components.minute = minute
+    private static func partials(from content: GeneratedCardContent) -> [GeneratedContentPartial] {
+        let summaryTokens = content.summary.split(separator: " ")
+        let firstSummaryChunk = summaryTokens.prefix(8).joined(separator: " ")
 
-        return components.date ?? Date(timeIntervalSince1970: 0)
+        return [
+            GeneratedContentPartial(summary: firstSummaryChunk),
+            GeneratedContentPartial(summary: content.summary),
+            GeneratedContentPartial(planTitle: content.planTitle, planSteps: content.planSteps),
+            GeneratedContentPartial(keyDetails: content.keyDetails),
+            GeneratedContentPartial(missingInfo: content.missingInfo),
+            GeneratedContentPartial(sourceReasoning: content.sourceReasoning)
+        ]
     }
-
 }

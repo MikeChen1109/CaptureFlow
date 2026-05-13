@@ -2,20 +2,17 @@ import SwiftUI
 
 struct HomeView: View {
     @StateObject private var viewModel: HomeViewModel
-    private let refreshTrigger: UUID
     private let onCreateCard: () -> Void
     private let onSelectCard: (ActionCard) -> Void
     private let onOpenSettings: () -> Void
 
     init(
         viewModel: HomeViewModel,
-        refreshTrigger: UUID = UUID(),
         onCreateCard: @escaping () -> Void = {},
         onSelectCard: @escaping (ActionCard) -> Void = { _ in },
         onOpenSettings: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
-        self.refreshTrigger = refreshTrigger
         self.onCreateCard = onCreateCard
         self.onSelectCard = onSelectCard
         self.onOpenSettings = onOpenSettings
@@ -41,14 +38,6 @@ struct HomeView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await viewModel.loadIfNeeded()
-        }
-        .onChange(of: refreshTrigger) { _, _ in
-            Task {
-                await viewModel.refresh()
-            }
-        }
-        .refreshable {
-            await viewModel.refresh()
         }
         .tint(CFColors.primaryOrange)
     }
@@ -144,19 +133,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private var content: some View {
-        if viewModel.isLoading && viewModel.cards.isEmpty {
-            CFCardContainer {
-                HStack(spacing: CFSpacing.medium) {
-                    ProgressView()
-                        .tint(CFColors.primaryOrange)
-
-                    Text("Loading inbox")
-                        .font(CFTypography.callout)
-                        .foregroundStyle(CFColors.textSecondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        } else if viewModel.cards.isEmpty {
+        if viewModel.cards.isEmpty {
             CFEmptyStateView(
                 title: "No cards yet",
                 message: "Create a new card from a photo or imported image.",

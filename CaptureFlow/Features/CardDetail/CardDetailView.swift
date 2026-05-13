@@ -2,13 +2,16 @@ import SwiftUI
 
 struct CardDetailView: View {
     @StateObject private var viewModel: CardDetailViewModel
+    let onCardDeleted: () -> Void
     let onClose: () -> Void
 
     init(
         viewModel: CardDetailViewModel,
+        onCardDeleted: @escaping () -> Void = {},
         onClose: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.onCardDeleted = onCardDeleted
         self.onClose = onClose
     }
 
@@ -73,10 +76,6 @@ struct CardDetailView: View {
                             .font(CFTypography.callout)
                             .foregroundStyle(statusTint(card))
                     }
-
-                    Spacer()
-
-                    CFConfidenceBadge(level: card.confidence, score: card.confidenceScore)
                 }
             }
         }
@@ -154,6 +153,7 @@ struct CardDetailView: View {
                 ) {
                     Task {
                         if await viewModel.delete() {
+                            onCardDeleted()
                             onClose()
                         }
                     }

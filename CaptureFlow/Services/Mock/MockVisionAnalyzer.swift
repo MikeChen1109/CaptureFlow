@@ -53,9 +53,9 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             requestedCardType: requestedCardType,
             resolvedCardType: .shopping,
             sourceImage: sourceImage,
-            sceneTitle: "Keyboard discount tag",
-            sceneSummary: "The image appears to show an orange mechanical keyboard offer with a visible price and a limited-time promotion.",
-            userIntentGuess: "The user likely wants to save the product, compare the deal, and decide whether to buy it later.",
+            sceneTitle: "Mechanical keyboard deal",
+            sceneSummary: "An orange mechanical keyboard is shown with a visible price, limited-time discount, and hot-swap switch feature.",
+            userIntentGuess: "The user may want to save the deal and compare it before buying.",
             visibleText: [
                 "Orange Mechanical Keyboard",
                 "NT$2,490",
@@ -64,37 +64,40 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             ],
             visualObjects: [
                 "orange mechanical keyboard",
-                "retail shelf tag",
-                "discount badge",
-                "product card"
+                "product offer card",
+                "discount label"
             ],
-            layoutDescription: "Product name is prominent near the top, the price is centered, and the discount callout sits beside the product photo.",
+            layoutDescription: "The product name, price, and promotion are presented as a shopping offer.",
             entities: [
                 entity(.product, label: "Product", value: "Orange Mechanical Keyboard", confidence: 0.94),
                 entity(.price, label: "Price", value: "NT$2,490", confidence: 0.96),
-                entity(.promotion, label: "Promotion", value: "Limited time discount", confidence: 0.9)
+                entity(.promotion, label: "Promotion", value: "Limited time discount", confidence: 0.9),
+                entity(.note, label: "Feature", value: "Hot-swap switches", confidence: 0.88)
             ],
             possibleActions: [
-                action("Create Buying Plan", description: "Save the product, price, and promotion for a later purchase decision.", actionType: .save),
-                action("Compare Alternatives", description: "Compare this keyboard against other models before buying.", actionType: .compare),
-                action("Set Purchase Reminder", description: "Create a reminder to check the deal before the promotion expires.", actionType: .reminder)
+                action("Save Product Details", description: "Save the product name, price, promotion, and visible feature notes.", actionType: .save),
+                action("Compare Alternatives", description: "Compare this keyboard with similar mechanical keyboards before buying.", actionType: .compare),
+                action("Check Promotion Deadline", description: "Find the promotion end date before setting a purchase reminder.", actionType: .reminder)
             ],
             constraints: [
                 "Promotion end date is not visible.",
-                "Store name cannot be confirmed from the image."
+                "Store name cannot be confirmed from the image.",
+                "Warranty details are not shown.",
+                "Exact model number is missing."
             ],
             missingInfo: [
-                "store",
-                "warranty",
-                "model number"
+                "Store name is not visible.",
+                "Warranty details are not shown.",
+                "Exact model number is missing.",
+                "Promotion end date is not visible."
             ],
             recommendedPlanTitle: "Buying Plan",
-            draftIntent: "Track this keyboard deal, compare options, and decide whether to purchase.",
             confidenceScore: 0.9,
             evidence: [
                 "Visible product text reads Orange Mechanical Keyboard.",
                 "Visible price reads NT$2,490.",
-                "A limited-time discount label is visible near the product offer."
+                "A limited-time discount label is visible.",
+                "Visible text mentions hot-swap switches."
             ]
         )
     }
@@ -107,9 +110,9 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             requestedCardType: requestedCardType,
             resolvedCardType: .job,
             sourceImage: sourceImage,
-            sceneTitle: "iOS engineer job post",
-            sceneSummary: "The image appears to be a job posting from Capture Labs for an iOS Engineer role focused on SwiftUI and AI capture features.",
-            userIntentGuess: "The user likely wants to turn the posting into an application plan and preserve the role requirements.",
+            sceneTitle: "iOS Engineer job post",
+            sceneSummary: "A Capture Labs iOS Engineer role is shown with SwiftUI, iOS, AI features, and vision-to-action workflow responsibilities.",
+            userIntentGuess: "The user may want to save the role requirements and prepare an application plan.",
             visibleText: [
                 "Capture Labs",
                 "iOS Engineer",
@@ -128,30 +131,33 @@ struct MockVisionAnalyzer: VisionAnalyzing {
                 entity(.role, label: "Role", value: "iOS Engineer", confidence: 0.93),
                 entity(.skill, label: "Skill", value: "SwiftUI", confidence: 0.91),
                 entity(.skill, label: "Skill", value: "iOS", confidence: 0.9),
-                entity(.skill, label: "Skill", value: "AI features", confidence: 0.86)
+                entity(.skill, label: "Skill", value: "AI features", confidence: 0.86),
+                entity(.note, label: "Responsibility", value: "Build vision-to-action workflows", confidence: 0.84)
             ],
             possibleActions: [
-                action("Create Application Plan", description: "Save the role, company, and required skills as an application card.", actionType: .save),
-                action("Follow Up on Posting", description: "Create a follow-up task to find contact details and deadline.", actionType: .followUp),
+                action("Save Role Details", description: "Save the company, role title, visible skills, and responsibility notes.", actionType: .save),
+                action("Prepare Application Plan", description: "Use the visible requirements to plan resume tailoring and application next steps.", actionType: .followUp),
                 action("Copy Job Summary", description: "Copy the extracted role summary into notes or an application tracker.", actionType: .copy)
             ],
             constraints: [
-                "No explicit salary is visible.",
-                "No application contact or deadline is visible."
+                "Salary is not visible.",
+                "Application contact is not visible.",
+                "Work type is not visible.",
+                "Application deadline is not visible."
             ],
             missingInfo: [
-                "salary",
-                "contact",
-                "work type",
-                "deadline"
+                "Salary range is not visible.",
+                "Application contact is not shown.",
+                "Remote, hybrid, or onsite work type is not visible.",
+                "Application deadline is not shown."
             ],
             recommendedPlanTitle: "Application Plan",
-            draftIntent: "Save this iOS Engineer role and prepare next steps for applying.",
             confidenceScore: 0.86,
             evidence: [
                 "Company text reads Capture Labs.",
                 "Role text reads iOS Engineer.",
-                "The skill list includes SwiftUI, iOS, and AI features."
+                "The skill list includes SwiftUI, iOS, and AI features.",
+                "Visible responsibility text mentions vision-to-action workflows."
             ]
         )
     }
@@ -165,8 +171,8 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             resolvedCardType: .calendar,
             sourceImage: sourceImage,
             sceneTitle: "Product review sync",
-            sceneSummary: "The image appears to show a meeting agenda for a Product Review Sync scheduled on 2026-06-18 from 14:00 to 15:00.",
-            userIntentGuess: "The user likely wants to create a calendar event and keep the visible meeting context.",
+            sceneSummary: "A Product Review Sync meeting is shown for 2026-06-18 from 14:00 to 15:00 at Taipei 101 Meeting Room.",
+            userIntentGuess: "The user may want to create a calendar event and keep the visible meeting details.",
             visibleText: [
                 "Product Review Sync",
                 "2026-06-18",
@@ -187,21 +193,23 @@ struct MockVisionAnalyzer: VisionAnalyzing {
                 entity(.location, label: "Location", value: "Taipei 101 Meeting Room", confidence: 0.9)
             ],
             possibleActions: [
-                action("Create Day Plan", description: "Create a calendar event from the visible date, time, and location.", actionType: .calendar),
-                action("Save Meeting Notes", description: "Preserve the visible agenda details as notes on the event.", actionType: .save),
-                action("Share Event Details", description: "Share the extracted meeting details with collaborators.", actionType: .share)
+                action("Create Calendar Event", description: "Create an event using the visible title, date, time, and location.", actionType: .calendar),
+                action("Save Meeting Details", description: "Save the visible meeting details as notes on the event.", actionType: .save),
+                action("Check Missing Details", description: "Confirm attendees, agenda, and any meeting link before finalizing the event.", actionType: .followUp)
             ],
             constraints: [
                 "Attendees are not visible.",
-                "Agenda details appear short and may be incomplete."
+                "Detailed agenda is not visible.",
+                "Meeting link is not visible.",
+                "Floor or full address is not visible."
             ],
             missingInfo: [
-                "attendees",
-                "agenda",
-                "exact location"
+                "Attendees are not visible.",
+                "Detailed agenda is not shown.",
+                "Meeting link is not visible.",
+                "Floor or full address is not shown."
             ],
-            recommendedPlanTitle: "Day Plan",
-            draftIntent: "Add the product review sync to the calendar with visible time and location details.",
+            recommendedPlanTitle: "Calendar Plan",
             confidenceScore: 0.91,
             evidence: [
                 "Visible event title reads Product Review Sync.",
@@ -221,8 +229,8 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             resolvedCardType: .note,
             sourceImage: sourceImage,
             sceneTitle: "Launch checklist whiteboard",
-            sceneSummary: "The image appears to show a whiteboard launch checklist with onboarding, import flow testing, and demo script preparation as key points.",
-            userIntentGuess: "The user likely wants to capture the whiteboard into structured notes and action items.",
+            sceneSummary: "A launch checklist is shown with tasks for polishing onboarding, testing the import flow, and preparing the demo script.",
+            userIntentGuess: "The user may want to turn the whiteboard into structured notes and follow-up items.",
             visibleText: [
                 "Launch checklist",
                 "Polish onboarding",
@@ -237,7 +245,7 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             ],
             layoutDescription: "A heading sits above three short checklist items, each written as a concrete task.",
             entities: [
-                entity(.note, label: "Key point", value: "Launch checklist", confidence: 0.89),
+                entity(.note, label: "Topic", value: "Launch checklist", confidence: 0.89),
                 entity(.note, label: "Action item", value: "Polish onboarding", confidence: 0.88),
                 entity(.note, label: "Action item", value: "Test import flow", confidence: 0.87),
                 entity(.note, label: "Action item", value: "Prepare demo script", confidence: 0.86)
@@ -245,19 +253,19 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             possibleActions: [
                 action("Save Action Items", description: "Save the checklist as a structured note with action items.", actionType: .save),
                 action("Copy Markdown", description: "Copy the extracted checklist into Markdown.", actionType: .copy),
-                action("Create Follow Up", description: "Create a follow-up task for unresolved checklist work.", actionType: .followUp)
+                action("Create Follow-Up Tasks", description: "Create follow-up tasks for checklist items that still need owners, deadlines, or priority.", actionType: .followUp)
             ],
             constraints: [
-                "Handwritten text may omit owners and due dates.",
-                "No priority order is visible."
+                "Owners are not visible.",
+                "Deadlines are not visible.",
+                "Priority order is not visible."
             ],
             missingInfo: [
-                "owners",
-                "deadlines",
-                "priority"
+                "Task owners are not visible.",
+                "Deadlines are not shown.",
+                "Priority order is not clear."
             ],
             recommendedPlanTitle: "Action Items",
-            draftIntent: "Turn the launch checklist into a structured note and follow-up items.",
             confidenceScore: 0.82,
             evidence: [
                 "The heading reads Launch checklist.",
@@ -276,8 +284,8 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             resolvedCardType: .reminder,
             sourceImage: sourceImage,
             sceneTitle: "Design meetup reminder",
-            sceneSummary: "The image appears to show a meetup poster for a design event in Taipei on 2026-06-15 at 19:30.",
-            userIntentGuess: "The user likely wants a reminder checklist for attending the meetup.",
+            sceneSummary: "A design meetup poster is shown with the event date, time, and city: 2026-06-15 at 19:30 in Taipei.",
+            userIntentGuess: "The user may want to create a reminder and confirm missing venue details before attending.",
             visibleText: [
                 "Design meetup",
                 "2026-06-15",
@@ -292,27 +300,27 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             ],
             layoutDescription: "Event title is the largest text, with date, time, and city listed underneath as separate details.",
             entities: [
-                entity(.event, label: "Title", value: "Design meetup", confidence: 0.94),
+                entity(.event, label: "Event", value: "Design meetup", confidence: 0.94),
                 entity(.date, label: "Date", value: "2026-06-15", confidence: 0.93),
                 entity(.time, label: "Time", value: "19:30", confidence: 0.91),
-                entity(.location, label: "Location", value: "Taipei", confidence: 0.88)
+                entity(.location, label: "City", value: "Taipei", confidence: 0.88)
             ],
             possibleActions: [
-                action("Create Checklist Reminder", description: "Create a reminder for the meetup with the visible date, time, and city.", actionType: .reminder),
-                action("Save Event Poster", description: "Save the poster details for later reference.", actionType: .save),
-                action("Follow Up on Details", description: "Check for final venue, agenda, and attendee details.", actionType: .followUp)
+                action("Create Reminder", description: "Create a reminder using the visible event title, date, time, and city.", actionType: .reminder),
+                action("Save Event Details", description: "Save the poster details for later reference.", actionType: .save),
+                action("Confirm Venue Details", description: "Check the exact venue, agenda, and attendee details before attending.", actionType: .followUp)
             ],
             constraints: [
-                "Only the city is visible, not the venue address.",
-                "No attendee or agenda details are visible."
+                "Only the city is visible, not the exact venue address.",
+                "Agenda details are not visible.",
+                "Attendee details are not visible."
             ],
             missingInfo: [
-                "exact location",
-                "agenda",
-                "attendees"
+                "Exact venue address is not visible.",
+                "Agenda details are not shown.",
+                "Attendee details are not visible."
             ],
-            recommendedPlanTitle: "Checklist",
-            draftIntent: "Create a reminder to attend the design meetup and verify missing event details.",
+            recommendedPlanTitle: "Reminder Checklist",
             confidenceScore: 0.88,
             evidence: [
                 "Visible title reads Design meetup.",
@@ -322,7 +330,7 @@ struct MockVisionAnalyzer: VisionAnalyzing {
             ]
         )
     }
-
+    
     private func entity(
         _ type: VisionEntityType,
         label: String,

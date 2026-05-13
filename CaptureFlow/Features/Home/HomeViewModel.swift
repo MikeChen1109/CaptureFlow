@@ -6,6 +6,7 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var cards: [ActionCard] = []
     @Published private(set) var creditBalance: CreditBalance?
     @Published private(set) var isLoading = false
+    @Published private(set) var hasAttemptedInitialLoad = false
     @Published var errorMessage: String?
 
     private let cardRepository: any CardRepository
@@ -58,10 +59,15 @@ final class HomeViewModel: ObservableObject {
             errorMessage = "Unable to load inbox."
         }
 
+        hasAttemptedInitialLoad = true
         isLoading = false
     }
 
     func refresh() async {
         await load(force: true)
+    }
+
+    func removeCardLocally(_ cardID: UUID) {
+        cards.removeAll { $0.id == cardID }
     }
 }

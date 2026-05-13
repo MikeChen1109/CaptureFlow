@@ -7,19 +7,17 @@ struct GeneratedCardContent: Codable, Hashable, Identifiable, Sendable {
     var planSteps: [GeneratedPlanStep]
     var keyDetails: [GeneratedField]
     var recommendedActions: [GeneratedAction]
-    var draftOutput: GeneratedDraft
     var missingInfo: [String]
     var sourceReasoning: [String]
     var personalNotePlaceholder: String
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         summary: String,
         planTitle: String,
         planSteps: [GeneratedPlanStep],
         keyDetails: [GeneratedField],
         recommendedActions: [GeneratedAction],
-        draftOutput: GeneratedDraft,
         missingInfo: [String],
         sourceReasoning: [String],
         personalNotePlaceholder: String = "Add your own note..."
@@ -30,7 +28,6 @@ struct GeneratedCardContent: Codable, Hashable, Identifiable, Sendable {
         self.planSteps = planSteps
         self.keyDetails = keyDetails
         self.recommendedActions = recommendedActions
-        self.draftOutput = draftOutput
         self.missingInfo = missingInfo
         self.sourceReasoning = sourceReasoning
         self.personalNotePlaceholder = personalNotePlaceholder
@@ -43,7 +40,7 @@ struct GeneratedPlanStep: Codable, Hashable, Identifiable, Sendable {
     var detail: String
     var actionType: VisionActionType
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         title: String,
         detail: String,
@@ -63,7 +60,7 @@ struct GeneratedField: Codable, Hashable, Identifiable, Sendable {
     var type: VisionEntityType
     var confidence: Double
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         label: String,
         value: String,
@@ -84,7 +81,7 @@ struct GeneratedAction: Codable, Hashable, Identifiable, Sendable {
     var description: String
     var actionType: VisionActionType
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         title: String,
         description: String,
@@ -97,50 +94,14 @@ struct GeneratedAction: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
-struct GeneratedDraft: Codable, Hashable, Identifiable, Sendable {
-    var id: UUID
-    var type: GeneratedDraftType
-    var title: String
-    var body: String
-
-    init(
-        id: UUID = UUID(),
-        type: GeneratedDraftType,
-        title: String,
-        body: String
-    ) {
-        self.id = id
-        self.type = type
-        self.title = title
-        self.body = body
-    }
-}
-
-enum GeneratedDraftType: String, Codable, CaseIterable, Identifiable, Sendable {
-    case reminder
-    case calendar
-    case note
-    case shopping
-    case job
-    case summary
-    case custom
-
-    var id: String { rawValue }
-}
-
 extension GeneratedCardContent {
-    static func fallback(from context: VisionUnderstandingContext) -> GeneratedCardContent {
+    nonisolated static func fallback(from context: VisionUnderstandingContext) -> GeneratedCardContent {
         GeneratedCardContent(
             summary: context.sceneSummary,
             planTitle: context.recommendedPlanTitle,
             planSteps: context.generatedPlanSteps,
             keyDetails: context.generatedKeyDetails,
             recommendedActions: context.generatedRecommendedActions,
-            draftOutput: GeneratedDraft(
-                type: context.generatedDraftType,
-                title: context.recommendedPlanTitle,
-                body: context.draftIntent
-            ),
             missingInfo: context.generatedMissingInfo,
             sourceReasoning: context.evidence,
             personalNotePlaceholder: "Add your own note..."
@@ -149,7 +110,7 @@ extension GeneratedCardContent {
 }
 
 extension VisionUnderstandingContext {
-    var generatedPlanSteps: [GeneratedPlanStep] {
+    nonisolated var generatedPlanSteps: [GeneratedPlanStep] {
         let steps = possibleActions.map {
             GeneratedPlanStep(
                 title: $0.title,
@@ -159,10 +120,11 @@ extension VisionUnderstandingContext {
         }
 
         guard !steps.isEmpty else {
+            let fallbackDetail = sceneSummary.trimmingCharacters(in: .whitespacesAndNewlines)
             return [
                 GeneratedPlanStep(
                     title: recommendedPlanTitle,
-                    detail: draftIntent,
+                    detail: fallbackDetail.isEmpty ? "Review captured details and decide next steps." : fallbackDetail,
                     actionType: .save
                 )
             ]
@@ -171,7 +133,7 @@ extension VisionUnderstandingContext {
         return steps
     }
 
-    var generatedKeyDetails: [GeneratedField] {
+    nonisolated var generatedKeyDetails: [GeneratedField] {
         entities.map {
             GeneratedField(
                 label: $0.label,
@@ -182,7 +144,7 @@ extension VisionUnderstandingContext {
         }
     }
 
-    var generatedRecommendedActions: [GeneratedAction] {
+    nonisolated var generatedRecommendedActions: [GeneratedAction] {
         possibleActions.map {
             GeneratedAction(
                 title: $0.title,
@@ -192,31 +154,14 @@ extension VisionUnderstandingContext {
         }
     }
 
-    var generatedMissingInfo: [String] {
+    nonisolated var generatedMissingInfo: [String] {
         (missingInfo + constraints.filter { $0.localizedCaseInsensitiveContains("not visible") })
             .uniqueCaseInsensitive()
-    }
-
-    var generatedDraftType: GeneratedDraftType {
-        switch resolvedCardType {
-        case .auto:
-            .summary
-        case .reminder:
-            .reminder
-        case .calendar:
-            .calendar
-        case .note:
-            .note
-        case .shopping:
-            .shopping
-        case .job:
-            .job
-        }
     }
 }
 
 private extension [String] {
-    func uniqueCaseInsensitive() -> [String] {
+    nonisolated func uniqueCaseInsensitive() -> [String] {
         reduce(into: []) { result, value in
             guard !result.contains(where: { $0.caseInsensitiveCompare(value) == .orderedSame }) else {
                 return
