@@ -25,12 +25,14 @@ struct AppContainer: Sendable {
     }
 
     static func prototype() -> AppContainer {
+        let eventKitStore = EventKitActionStore()
+
         return AppContainer(
             visionAnalyzer: MockVisionAnalyzer(),
             cardGenerator: defaultCardGenerator(),
             creditProvider: MockCreditProvider(),
-            reminderCreator: MockReminderCreator(),
-            calendarCreator: MockCalendarCreator(),
+            reminderCreator: EventKitReminderCreator(store: eventKitStore),
+            calendarCreator: EventKitCalendarCreator(store: eventKitStore),
             cardRepository: InMemoryCardRepository()
         )
     }

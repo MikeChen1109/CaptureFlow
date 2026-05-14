@@ -400,7 +400,9 @@
 				DEVELOPMENT_TEAM = Q8K3DDFT5E;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Create calendar events from captured action cards.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Capture photos to generate local action cards.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Create reminders from captured action cards.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = NO;
@@ -439,7 +441,9 @@
 				DEVELOPMENT_TEAM = Q8K3DDFT5E;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Create calendar events from captured action cards.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Capture photos to generate local action cards.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Create reminders from captured action cards.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = NO;

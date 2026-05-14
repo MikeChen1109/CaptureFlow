@@ -21,6 +21,7 @@ final class CardResultViewModel: ObservableObject {
     private(set) var generatedContent: GeneratedCardContent?
     private(set) var sourceReasoning: [String] = []
 
+    private let customFieldValueResolver = CardResultCustomFieldValueResolver()
     private let cardRepository: any CardRepository
     private let reminderCreator: any ReminderCreating
     private let calendarCreator: any CalendarCreating
@@ -64,7 +65,7 @@ final class CardResultViewModel: ObservableObject {
 
     var calendarActionState: CardResultCalendarActionState {
         guard case .calendar(let calendar) = card else {
-            return calendarActionStateFromCustomFields
+            return customFieldCalendarActionState
         }
 
         let trimmedTitle = calendar.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -88,8 +89,8 @@ final class CardResultViewModel: ObservableObject {
         )
     }
 
-    private var calendarActionStateFromCustomFields: CardResultCalendarActionState {
-        guard let customDate = customFieldDate else {
+    private var customFieldCalendarActionState: CardResultCalendarActionState {
+        guard let customDate = customCalendarDate else {
             return .hidden
         }
 
@@ -98,7 +99,7 @@ final class CardResultViewModel: ObservableObject {
             return .unavailable(reason: "Add an event title before creating a calendar event.")
         }
 
-        let startDate = customDate.combiningTime(from: customFieldTime)
+        let startDate = customDate.combiningTime(from: customCalendarTime)
         let notes = customFields
             .filter { $0.type == .note }
             .map(\.value)
@@ -116,17 +117,17 @@ final class CardResultViewModel: ObservableObject {
         )
     }
 
-    private var customFieldDate: Date? {
+    private var customCalendarDate: Date? {
         customFields
             .filter { $0.type == .date }
-            .compactMap { Self.customDateFormatter.date(from: $0.value) }
+            .compactMap { customFieldValueResolver.date(from: $0.value) }
             .first
     }
 
-    private var customFieldTime: Date? {
+    private var customCalendarTime: Date? {
         customFields
             .filter { $0.type == .time }
-            .compactMap { Self.customTimeFormatter.date(from: $0.value) }
+            .compactMap { customFieldValueResolver.time(from: $0.value) }
             .first
     }
 
@@ -216,16 +217,16 @@ final class CardResultViewModel: ObservableObject {
     }
 
     @discardableResult
-    func removeCustomField(id: UUID) -> RemovedCustomField? {
+    func removeCustomField(id: UUID) -> RemovedCardResultCustomField? {
         guard let index = customFields.firstIndex(where: { $0.id == id }) else {
             return nil
         }
 
         let field = customFields.remove(at: index)
-        return RemovedCustomField(field: field, originalIndex: index)
+        return RemovedCardResultCustomField(field: field, originalIndex: index)
     }
 
-    func restoreCustomField(_ removed: RemovedCustomField) {
+    func restoreCustomField(_ removed: RemovedCardResultCustomField) {
         let index = min(max(removed.originalIndex, 0), customFields.count)
         customFields.insert(removed.field, at: index)
     }
@@ -274,9 +275,9 @@ final class CardResultViewModel: ObservableObject {
             card = card.applyingReminderResult(result)
             try await persistIfNeeded()
             didCreateReminder = true
-            actionMessage = "Mock reminder created."
+            actionMessage = "Reminder created."
         } catch {
-            errorMessage = "Unable to create reminder for this card."
+            errorMessage = "Unable to create reminder: \(error.userFacingMessage)"
         }
 
         isCreatingReminder = false
@@ -297,9 +298,9 @@ final class CardResultViewModel: ObservableObject {
             card = card.applyingCalendarResult(result)
             try await persistIfNeeded()
             didCreateCalendar = true
-            actionMessage = "Mock calendar event created."
+            actionMessage = "Calendar event created."
         } catch {
-            errorMessage = "Unable to create calendar event for this card."
+            errorMessage = "Unable to create calendar event: \(error.userFacingMessage)"
         }
 
         isCreatingCalendar = false
@@ -315,22 +316,6 @@ final class CardResultViewModel: ObservableObject {
         guard didSave else { return }
         card = try await cardRepository.update(card)
     }
-
-    private static let customDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }()
-
-    private static let customTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter
-    }()
 }
 
 enum CardResultCalendarActionState: Equatable, Sendable {
@@ -364,27 +349,6 @@ enum CardResultCalendarActionState: Equatable, Sendable {
     }
 }
 
-struct CardResultCustomField: Identifiable, Equatable, Sendable {
-    var id: UUID
-    var type: CardResultCustomFieldType
-    var value: String
-
-    init(
-        id: UUID = UUID(),
-        type: CardResultCustomFieldType,
-        value: String
-    ) {
-        self.id = id
-        self.type = type
-        self.value = value
-    }
-}
-
-struct RemovedCustomField: Equatable, Sendable {
-    var field: CardResultCustomField
-    var originalIndex: Int
-}
-
 private extension Date {
     func combiningTime(from time: Date?) -> Date {
         var calendar = Calendar.autoupdatingCurrent
@@ -405,118 +369,6 @@ private extension Date {
 private extension String {
     var nonEmpty: String? {
         isEmpty ? nil : self
-    }
-}
-
-enum CardResultCustomFieldType: String, CaseIterable, Identifiable, Sendable {
-    case note
-    case date
-    case time
-    case location
-    case link
-    case contact
-    case custom
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .note:
-            "Note"
-        case .date:
-            "Date"
-        case .time:
-            "Time"
-        case .location:
-            "Location"
-        case .link:
-            "Link"
-        case .contact:
-            "Contact"
-        case .custom:
-            "Custom"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .note:
-            "note.text"
-        case .date:
-            "calendar"
-        case .time:
-            "clock"
-        case .location:
-            "mappin.and.ellipse"
-        case .link:
-            "link"
-        case .contact:
-            "person.crop.circle.badge.plus"
-        case .custom:
-            "square.and.pencil"
-        }
-    }
-
-    var placeholder: String {
-        switch self {
-        case .note:
-            "Add a note..."
-        case .date:
-            ""
-        case .time:
-            ""
-        case .location:
-            "Add a location..."
-        case .link:
-            "Paste a URL..."
-        case .contact:
-            "Add contact info..."
-        case .custom:
-            "Add custom field value..."
-        }
-    }
-
-    var helperDescription: String {
-        switch self {
-        case .note:
-            "Capture short context or follow-up notes."
-        case .date:
-            "Pick a date and it will be saved in a readable format."
-        case .time:
-            "Pick a time for reminders or scheduling details."
-        case .location:
-            "Store where this action should happen."
-        case .link:
-            "Save a useful URL. Missing scheme will auto-use https://."
-        case .contact:
-            "Store contact info like name, email, or phone."
-        case .custom:
-            "Use this for any additional detail not covered above."
-        }
-    }
-
-    var keyboardType: UIKeyboardType {
-        switch self {
-        case .link:
-            .URL
-        case .contact:
-            .emailAddress
-        default:
-            .default
-        }
-    }
-
-    var textContentType: UITextContentType? {
-        switch self {
-        case .location:
-            .fullStreetAddress
-        case .link:
-            .URL
-        case .contact:
-            .name
-        default:
-            nil
-        }
     }
 }
 
