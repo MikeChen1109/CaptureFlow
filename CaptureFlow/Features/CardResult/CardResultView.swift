@@ -582,27 +582,40 @@ private struct ActionButtonsCard: View {
                     onSaveTapped()
                 }
 
-                HStack(spacing: CFSpacing.medium) {
-                    CFSecondaryButton(
-                        viewModel.didCreateReminder ? "Reminder Created" : reminderButtonTitle,
-                        systemImage: viewModel.didCreateReminder ? "checkmark.circle.fill" : "bell.badge.fill",
-                        tone: viewModel.didCreateReminder ? .success : .normal,
-                        isDisabled: !viewModel.canCreateReminder || viewModel.didCreateReminder || viewModel.isCreatingReminder
-                    ) {
-                        Task {
-                            await viewModel.createReminder()
+                if viewModel.showsExternalActions {
+                    HStack(spacing: CFSpacing.medium) {
+                        if viewModel.showsReminderAction {
+                            CFSecondaryButton(
+                                viewModel.didCreateReminder ? "Reminder Created" : reminderButtonTitle,
+                                systemImage: viewModel.didCreateReminder ? "checkmark.circle.fill" : "bell.badge.fill",
+                                tone: viewModel.didCreateReminder ? .success : .normal,
+                                isDisabled: !viewModel.canCreateReminder || viewModel.didCreateReminder || viewModel.isCreatingReminder
+                            ) {
+                                Task {
+                                    await viewModel.createReminder()
+                                }
+                            }
+                        }
+
+                        if viewModel.showsCalendarAction {
+                            CFSecondaryButton(
+                                viewModel.didCreateCalendar ? "Calendar Created" : calendarButtonTitle,
+                                systemImage: viewModel.didCreateCalendar ? "checkmark.circle.fill" : "calendar.badge.plus",
+                                tone: viewModel.didCreateCalendar ? .success : .normal,
+                                isDisabled: !viewModel.canCreateCalendar || viewModel.didCreateCalendar || viewModel.isCreatingCalendar
+                            ) {
+                                Task {
+                                    await viewModel.createCalendarEvent()
+                                }
+                            }
                         }
                     }
 
-                    CFSecondaryButton(
-                        viewModel.didCreateCalendar ? "Calendar Created" : calendarButtonTitle,
-                        systemImage: viewModel.didCreateCalendar ? "checkmark.circle.fill" : "calendar.badge.plus",
-                        tone: viewModel.didCreateCalendar ? .success : .normal,
-                        isDisabled: !viewModel.canCreateCalendar || viewModel.didCreateCalendar || viewModel.isCreatingCalendar
-                    ) {
-                        Task {
-                            await viewModel.createCalendarEvent()
-                        }
+                    if let calendarUnavailableReason = viewModel.calendarActionState.unavailableReason {
+                        Text(calendarUnavailableReason)
+                            .font(CFTypography.caption)
+                            .foregroundStyle(CFColors.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
