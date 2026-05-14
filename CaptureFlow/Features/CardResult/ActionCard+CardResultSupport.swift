@@ -86,11 +86,4 @@ extension ActionCard {
         }
     }
 
-    var calendarRequestForCardResult: CalendarCreationRequest? {
-        guard case .calendar(let calendar) = self else {
-            return nil
-        }
-
-        return CalendarCreationRequest(card: calendar)
-    }
 }

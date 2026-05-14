@@ -59,11 +59,95 @@ final class CardResultViewModel: ObservableObject {
     }
 
     var canCreateCalendar: Bool {
-        if case .calendar = card {
-            return true
+        calendarActionState.request != nil
+    }
+
+    var calendarActionState: CardResultCalendarActionState {
+        guard case .calendar(let calendar) = card else {
+            return calendarActionStateFromCustomFields
         }
 
-        return false
+        let trimmedTitle = calendar.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            return .unavailable(reason: "Add an event title before creating a calendar event.")
+        }
+
+        let endDate = calendar.endDate > calendar.startDate
+            ? calendar.endDate
+            : calendar.startDate.addingTimeInterval(60 * 60)
+
+        return .available(
+            CalendarCreationRequest(
+                sourceCardID: calendar.id,
+                title: trimmedTitle,
+                startDate: calendar.startDate,
+                endDate: endDate,
+                location: calendar.location,
+                notes: calendar.notes
+            )
+        )
+    }
+
+    private var calendarActionStateFromCustomFields: CardResultCalendarActionState {
+        guard let customDate = customFieldDate else {
+            return .hidden
+        }
+
+        let trimmedTitle = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            return .unavailable(reason: "Add an event title before creating a calendar event.")
+        }
+
+        let startDate = customDate.combiningTime(from: customFieldTime)
+        let notes = customFields
+            .filter { $0.type == .note }
+            .map(\.value)
+            .joined(separator: "\n")
+
+        return .available(
+            CalendarCreationRequest(
+                sourceCardID: card.id,
+                title: trimmedTitle,
+                startDate: startDate,
+                endDate: startDate.addingTimeInterval(60 * 60),
+                location: customFieldValue(for: .location),
+                notes: notes
+            )
+        )
+    }
+
+    private var customFieldDate: Date? {
+        customFields
+            .filter { $0.type == .date }
+            .compactMap { Self.customDateFormatter.date(from: $0.value) }
+            .first
+    }
+
+    private var customFieldTime: Date? {
+        customFields
+            .filter { $0.type == .time }
+            .compactMap { Self.customTimeFormatter.date(from: $0.value) }
+            .first
+    }
+
+    private func customFieldValue(for type: CardResultCustomFieldType) -> String? {
+        customFields
+            .first { $0.type == type }?
+            .value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+    }
+
+    var showsReminderAction: Bool {
+        canCreateReminder || didCreateReminder || isCreatingReminder
+    }
+
+    var showsCalendarAction: Bool {
+        calendarActionState.isVisible || didCreateCalendar || isCreatingCalendar
+    }
+
+    var showsExternalActions: Bool {
+        showsReminderAction || showsCalendarAction
     }
 
     func sectionState(for type: GeneratedSectionType) -> GeneratedSectionState {
@@ -199,8 +283,8 @@ final class CardResultViewModel: ObservableObject {
     }
 
     func createCalendarEvent() async {
-        guard let request = card.calendarRequestForCardResult else {
-            errorMessage = "This card type does not support calendar events."
+        guard let request = calendarActionState.request else {
+            errorMessage = calendarActionState.unavailableReason ?? "This card type does not support calendar events."
             return
         }
 
@@ -231,6 +315,53 @@ final class CardResultViewModel: ObservableObject {
         guard didSave else { return }
         card = try await cardRepository.update(card)
     }
+
+    private static let customDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    private static let customTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}
+
+enum CardResultCalendarActionState: Equatable, Sendable {
+    case hidden
+    case unavailable(reason: String)
+    case available(CalendarCreationRequest)
+
+    var isVisible: Bool {
+        switch self {
+        case .hidden:
+            return false
+        case .unavailable, .available:
+            return true
+        }
+    }
+
+    var request: CalendarCreationRequest? {
+        guard case .available(let request) = self else {
+            return nil
+        }
+
+        return request
+    }
+
+    var unavailableReason: String? {
+        guard case .unavailable(let reason) = self else {
+            return nil
+        }
+
+        return reason
+    }
 }
 
 struct CardResultCustomField: Identifiable, Equatable, Sendable {
@@ -252,6 +383,29 @@ struct CardResultCustomField: Identifiable, Equatable, Sendable {
 struct RemovedCustomField: Equatable, Sendable {
     var field: CardResultCustomField
     var originalIndex: Int
+}
+
+private extension Date {
+    func combiningTime(from time: Date?) -> Date {
+        var calendar = Calendar.autoupdatingCurrent
+        calendar.timeZone = .autoupdatingCurrent
+
+        var dateComponents = calendar.dateComponents([.year, .month, .day], from: self)
+        let timeComponents = time.map {
+            calendar.dateComponents([.hour, .minute], from: $0)
+        }
+
+        dateComponents.hour = timeComponents?.hour ?? 9
+        dateComponents.minute = timeComponents?.minute ?? 0
+
+        return calendar.date(from: dateComponents) ?? self
+    }
+}
+
+private extension String {
+    var nonEmpty: String? {
+        isEmpty ? nil : self
+    }
 }
 
 enum CardResultCustomFieldType: String, CaseIterable, Identifiable, Sendable {
