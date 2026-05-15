@@ -1,7 +1,7 @@
 import Foundation
 
 extension ActionCard {
-    func updatingPersonalNote(_ value: String) -> ActionCard {
+    nonisolated func updatingPersonalNote(_ value: String) -> ActionCard {
         switch self {
         case .reminder(var reminder):
             reminder.notes = value
@@ -24,7 +24,7 @@ extension ActionCard {
         }
     }
 
-    func applyingReminderResult(_ result: ExternalActionResult) -> ActionCard {
+    nonisolated func applyingReminderResult(_ result: ExternalActionResult) -> ActionCard {
         switch self {
         case .reminder(var reminder):
             reminder.reminderExternalID = result.externalID
@@ -46,7 +46,7 @@ extension ActionCard {
         }
     }
 
-    func applyingCalendarResult(_ result: ExternalActionResult) -> ActionCard {
+    nonisolated func applyingCalendarResult(_ result: ExternalActionResult) -> ActionCard {
         guard case .calendar(var calendar) = self else {
             return self
         }
@@ -57,13 +57,13 @@ extension ActionCard {
         return .calendar(calendar)
     }
 
-    func reminderRequestForCardResult() -> ReminderCreationRequest? {
+    nonisolated func reminderRequestForCardResult() -> ReminderCreationRequest? {
         switch self {
         case .reminder(let reminder):
             return ReminderCreationRequest(card: reminder)
         case .shopping(let shopping):
             return ReminderCreationRequest(
-                sourceCardID: shopping.id,
+                sourceCardID: shopping.metadata.id,
                 title: "Buy \(shopping.productName)",
                 notes: shopping.notes,
                 dueDate: shopping.date,
@@ -72,7 +72,7 @@ extension ActionCard {
             )
         case .job(let job):
             return ReminderCreationRequest(
-                sourceCardID: job.id,
+                sourceCardID: job.metadata.id,
                 title: job.detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? "Review \(job.role) at \(job.company)"
                     : job.detail,

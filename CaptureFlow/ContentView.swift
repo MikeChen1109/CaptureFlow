@@ -51,8 +51,13 @@ struct ContentView: View {
                     CardDetailView(
                         viewModel: CardDetailViewModel(
                             cardID: cardID,
-                            cardRepository: container.cardRepository
+                            cardRepository: container.cardRepository,
+                            reminderCreator: container.reminderCreator,
+                            calendarCreator: container.calendarCreator
                         ),
+                        onCardUpdated: { updatedCard in
+                            homeViewModel.applyUpdatedCard(updatedCard)
+                        },
                         onCardDeleted: {
                             homeViewModel.removeCardLocally(cardID)
                             Task {
@@ -110,17 +115,17 @@ struct ContentView: View {
         .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 10)
     }
 
-    private func finishNewCardFlow(savedCard: ActionCard?) {
+    private func finishNewCardFlow(savedCard: SavedInsightCard?) {
         isShowingNewCardFlow = false
 
-        guard let savedCard else {
+        guard savedCard != nil else {
             return
         }
 
         Task {
             await homeViewModel.refresh()
         }
-        showCompletionMessage("\(savedCard.type.displayName) saved to Inbox")
+        showCompletionMessage("Insight saved to Inbox")
     }
 
     private func bootstrapHome() async {

@@ -18,8 +18,8 @@ final class CardResultViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var actionMessage: String?
 
-    private(set) var generatedContent: GeneratedCardContent?
-    private(set) var sourceReasoning: [String] = []
+    private(set) var generatedContent: GeneratedInsightCard?
+    private(set) var savedInsightCard: SavedInsightCard?
 
     private let customFieldValueResolver = CardResultCustomFieldValueResolver()
     private let cardRepository: any CardRepository
@@ -36,6 +36,7 @@ final class CardResultViewModel: ObservableObject {
     ) {
         self.card = card
         self.generatedContent = nil
+        self.savedInsightCard = nil
         self.cardRepository = cardRepository
         self.reminderCreator = reminderCreator
         self.calendarCreator = calendarCreator
@@ -151,24 +152,14 @@ final class CardResultViewModel: ObservableObject {
         showsReminderAction || showsCalendarAction
     }
 
-    func sectionState(for type: GeneratedSectionType) -> GeneratedSectionState {
-        sectionStates.first { $0.sectionType == type }
-            ?? GeneratedSectionState(sectionType: type, status: .waiting, content: nil)
-    }
-
     func firstWaitingSection() -> GeneratedSectionState? {
         sectionStateMachine.firstWaitingSection
     }
 
-    func applyPartialContent(_ partial: GeneratedContentPartial) {
-        errorMessage = nil
-        sectionStateMachine.applyPartialContent(partial)
-        syncSectionState()
-    }
-
-    func completeGeneration(card: ActionCard, content: GeneratedCardContent) {
+    func completeGeneration(card: ActionCard, content: GeneratedInsightCard) {
         self.card = card
         generatedContent = content
+        savedInsightCard = nil
 
         sectionStateMachine.complete(with: content)
         syncSectionState()
@@ -178,13 +169,13 @@ final class CardResultViewModel: ObservableObject {
         sectionStateMachine.fail()
         syncSectionState()
         actionMessage = nil
-        errorMessage = "Unable to build this card: \(error.userFacingMessage)"
+        errorMessage = "Unable to build this insight: \(error.userFacingMessage)"
     }
 
     func resetForRetry(with card: ActionCard) {
         self.card = card
         generatedContent = nil
-        sourceReasoning = []
+        savedInsightCard = nil
         customFields = []
         errorMessage = nil
         actionMessage = nil
@@ -231,28 +222,39 @@ final class CardResultViewModel: ObservableObject {
         customFields.insert(removed.field, at: index)
     }
 
-    @discardableResult
-    func save() async -> Bool {
+    func save() async -> SavedInsightCard? {
         isSaving = true
         errorMessage = nil
         actionMessage = nil
 
         do {
-            card = try await cardRepository.save(card)
+            guard let generatedContent else {
+                throw ServiceError.invalidGeneratedCard
+            }
+
+            let cardToSave = savedInsightCard ?? SavedInsightCard(
+                insight: generatedContent,
+                actionCard: card
+            )
+            let savedCard = try await cardRepository.save(cardToSave)
+            savedInsightCard = savedCard
+            if let actionCard = savedCard.actionCard {
+                card = actionCard
+            }
             didSave = true
             actionMessage = "Saved to local inbox."
         } catch {
             errorMessage = "Unable to save this card."
             isSaving = false
-            return false
+            return nil
         }
 
         isSaving = false
-        return true
+        return savedInsightCard
     }
 
     func copyMarkdown() {
-        UIPasteboard.general.string = card.markdown
+        UIPasteboard.general.string = generatedContent?.markdown ?? card.markdown
         didCopyMarkdown = true
         actionMessage = "Markdown copied."
         errorMessage = nil
@@ -273,7 +275,9 @@ final class CardResultViewModel: ObservableObject {
         do {
             let result = try await reminderCreator.createReminder(request)
             card = card.applyingReminderResult(result)
-            try await persistIfNeeded()
+            if let savedInsightCard {
+                try await persistIfNeeded(savedInsightCard.applyingReminderResult(result))
+            }
             didCreateReminder = true
             actionMessage = "Reminder created."
         } catch {
@@ -296,7 +300,9 @@ final class CardResultViewModel: ObservableObject {
         do {
             let result = try await calendarCreator.createCalendarEvent(request)
             card = card.applyingCalendarResult(result)
-            try await persistIfNeeded()
+            if let savedInsightCard {
+                try await persistIfNeeded(savedInsightCard.applyingCalendarResult(result))
+            }
             didCreateCalendar = true
             actionMessage = "Calendar event created."
         } catch {
@@ -309,12 +315,15 @@ final class CardResultViewModel: ObservableObject {
     private func syncSectionState() {
         sectionStates = sectionStateMachine.sectionStates
         generationStatus = sectionStateMachine.generationStatus
-        sourceReasoning = sectionStateMachine.sourceReasoning
     }
 
-    private func persistIfNeeded() async throws {
+    private func persistIfNeeded(_ card: SavedInsightCard) async throws {
         guard didSave else { return }
-        card = try await cardRepository.update(card)
+        let updatedCard = try await cardRepository.update(card)
+        savedInsightCard = updatedCard
+        if let actionCard = updatedCard.actionCard {
+            self.card = actionCard
+        }
     }
 }
 

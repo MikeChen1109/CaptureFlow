@@ -25,7 +25,6 @@ struct CapturePreviewView: View {
                 VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
                     imagePreview
                     imageActions
-                    cardTypeSection
                 }
                 .padding(.horizontal, CFSpacing.large)
                 .padding(.top, CFSpacing.medium)
@@ -87,7 +86,7 @@ struct CapturePreviewView: View {
         CFImagePreviewCard(
             image: viewModel.selectedImage,
             title: viewModel.selectedImage == nil ? "No image selected" : "Ready to analyze",
-            subtitle: viewModel.selectedImage == nil ? "Import an image to create an action card." : "Choose a card type, then analyze."
+            subtitle: viewModel.selectedImage == nil ? "Import an image to create an insight card." : "Analyze the image to create a useful insight card."
         )
     }
 
@@ -149,16 +148,6 @@ struct CapturePreviewView: View {
                     .foregroundStyle(CFColors.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-        }
-    }
-
-    private var cardTypeSection: some View {
-        VStack(alignment: .leading, spacing: CFSpacing.medium) {
-            Text("Card Type")
-                .font(CFTypography.headline)
-                .foregroundStyle(CFColors.textPrimary)
-
-            CardTypePickerView(selectedCardType: $viewModel.selectedCardType)
         }
     }
 

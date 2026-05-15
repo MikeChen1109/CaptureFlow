@@ -16,7 +16,7 @@ struct CardResultGenerationView: View {
         static let allTitles = [
             "Reading image",
             "Understanding context",
-            "Generating action card"
+            "Generating insight card"
         ]
     }
 
@@ -25,7 +25,7 @@ struct CardResultGenerationView: View {
     let cardRepository: any CardRepository
     let reminderCreator: any ReminderCreating
     let calendarCreator: any CalendarCreating
-    let onFinish: (ActionCard) -> Void
+    let onFinish: (SavedInsightCard) -> Void
     let onChangeImage: () -> Void
     let onCancel: () -> Void
 
@@ -45,7 +45,7 @@ struct CardResultGenerationView: View {
         cardRepository: any CardRepository,
         reminderCreator: any ReminderCreating,
         calendarCreator: any CalendarCreating,
-        onFinish: @escaping (ActionCard) -> Void,
+        onFinish: @escaping (SavedInsightCard) -> Void,
         onChangeImage: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -137,11 +137,9 @@ struct CardResultGenerationView: View {
         loadingStepIndex = LoadingStep.generatingCard.rawValue
 
         do {
-            var completedPayload: (card: ActionCard, content: GeneratedCardContent)?
+            var completedPayload: (card: ActionCard, content: GeneratedInsightCard)?
             for try await event in cardGenerator.streamGeneratedContent(from: context) {
                 switch event {
-                case .partialContent:
-                    continue
                 case .completed(let card, let content):
                     completedPayload = (card: card, content: content)
                 }
@@ -155,7 +153,7 @@ struct CardResultGenerationView: View {
             await revealContentTopToBottom()
         } catch {
             viewModel.failGeneration(error)
-            loadingErrorMessage = "Unable to build this card: \(error.userFacingMessage)"
+            loadingErrorMessage = "Unable to build this insight: \(error.userFacingMessage)"
             phase = .failed
         }
     }
@@ -165,6 +163,12 @@ struct CardResultGenerationView: View {
             phase = .revealing
         }
         let totalSections = viewModel.sectionStates.count
+        guard totalSections > 0 else {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
+                phase = .ready
+            }
+            return
+        }
 
         for nextVisibleCount in 1...totalSections {
             withAnimation(.spring(response: 0.44, dampingFraction: 0.83, blendDuration: 0.1)) {
@@ -249,7 +253,7 @@ private struct UnifiedGenerationLoadingView: View {
                 CFCardContainer {
                     VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
                         VStack(alignment: .leading, spacing: CFSpacing.small) {
-                            Text("Analyzing & Building Card")
+                            Text("Analyzing & Building Insight")
                                 .font(CFTypography.title)
                                 .foregroundStyle(CFColors.textPrimary)
 

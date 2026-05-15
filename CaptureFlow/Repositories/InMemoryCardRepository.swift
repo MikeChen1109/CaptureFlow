@@ -1,35 +1,35 @@
 import Foundation
 
 actor InMemoryCardRepository: CardRepository {
-    private var cardsByID: [UUID: ActionCard]
+    private var cardsByID: [UUID: SavedInsightCard]
 
-    init(seedCards: [ActionCard] = []) {
+    init(seedCards: [SavedInsightCard] = []) {
         self.cardsByID = Dictionary(
             uniqueKeysWithValues: seedCards.map { ($0.id, $0) }
         )
     }
 
-    func fetchCards(includeArchived: Bool) async throws -> [ActionCard] {
+    func fetchCards(includeArchived: Bool) async throws -> [SavedInsightCard] {
         sortedCards(includeArchived: includeArchived)
     }
 
-    func fetchRecentCards(limit: Int, includeArchived: Bool) async throws -> [ActionCard] {
+    func fetchRecentCards(limit: Int, includeArchived: Bool) async throws -> [SavedInsightCard] {
         Array(sortedCards(includeArchived: includeArchived).prefix(max(limit, 0)))
     }
 
-    func fetchCard(id: UUID) async throws -> ActionCard? {
+    func fetchCard(id: UUID) async throws -> SavedInsightCard? {
         cardsByID[id]
     }
 
     @discardableResult
-    func save(_ card: ActionCard) async throws -> ActionCard {
+    func save(_ card: SavedInsightCard) async throws -> SavedInsightCard {
         let savedCard = card.updatingStatus(.saved)
         cardsByID[savedCard.id] = savedCard
         return savedCard
     }
 
     @discardableResult
-    func update(_ card: ActionCard) async throws -> ActionCard {
+    func update(_ card: SavedInsightCard) async throws -> SavedInsightCard {
         guard cardsByID[card.id] != nil else {
             throw RepositoryError.cardNotFound(card.id)
         }
@@ -42,7 +42,7 @@ actor InMemoryCardRepository: CardRepository {
     }
 
     @discardableResult
-    func archiveCard(id: UUID) async throws -> ActionCard {
+    func archiveCard(id: UUID) async throws -> SavedInsightCard {
         guard let card = cardsByID[id] else {
             throw RepositoryError.cardNotFound(id)
         }
@@ -62,7 +62,7 @@ actor InMemoryCardRepository: CardRepository {
         cardsByID.removeAll()
     }
 
-    private func sortedCards(includeArchived: Bool) -> [ActionCard] {
+    private func sortedCards(includeArchived: Bool) -> [SavedInsightCard] {
         cardsByID.values
             .filter { includeArchived || $0.status != .archived }
             .sorted { first, second in

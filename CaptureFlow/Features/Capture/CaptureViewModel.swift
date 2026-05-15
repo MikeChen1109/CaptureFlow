@@ -6,7 +6,6 @@ import UIKit
 
 @MainActor
 final class CaptureViewModel: ObservableObject {
-    @Published var selectedCardType: CardType = .auto
     @Published private(set) var selectedImage: Image?
     @Published private(set) var selectedImageData: Data?
     @Published private(set) var sourceImage: CardSourceImage?
@@ -25,7 +24,7 @@ final class CaptureViewModel: ObservableObject {
         return VisionAnalysisRequest(
             imageData: selectedImageData,
             sourceImage: sourceImage,
-            selectedCardType: selectedCardType
+            selectedCardType: .auto
         )
     }
 
@@ -42,12 +41,14 @@ final class CaptureViewModel: ObservableObject {
                   let uiImage = UIImage(data: data) else {
                 throw ServiceError.noImageProvided
             }
+            let persistedData = uiImage.jpegData(compressionQuality: 0.86) ?? data
+            let localPath = try persistSourceImageData(persistedData)
 
             selectedImageData = data
             selectedImage = Image(uiImage: uiImage)
             sourceImage = CardSourceImage(
                 source: .photoLibrary,
-                originalFilename: item.itemIdentifier
+                localPath: localPath
             )
         } catch {
             errorMessage = "Unable to import this image."
@@ -64,7 +65,34 @@ final class CaptureViewModel: ObservableObject {
 
         selectedImageData = data
         selectedImage = Image(uiImage: uiImage)
-        sourceImage = CardSourceImage(source: .camera)
+        sourceImage = CardSourceImage(
+            source: .camera,
+            localPath: try? persistSourceImageData(data)
+        )
         errorMessage = nil
+    }
+
+    private func persistSourceImageData(_ data: Data) throws -> String {
+        let fileManager = FileManager.default
+        let baseDirectory = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let imageDirectory = baseDirectory
+            .appendingPathComponent("CaptureFlow", isDirectory: true)
+            .appendingPathComponent("SourceImages", isDirectory: true)
+
+        try fileManager.createDirectory(
+            at: imageDirectory,
+            withIntermediateDirectories: true
+        )
+
+        let fileURL = imageDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("jpg")
+        try data.write(to: fileURL, options: .atomic)
+        return fileURL.path
     }
 }

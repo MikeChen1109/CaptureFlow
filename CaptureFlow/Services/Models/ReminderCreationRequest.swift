@@ -9,7 +9,7 @@ struct ReminderCreationRequest: Codable, Hashable, Identifiable, Sendable {
     var location: String?
     var priority: ReminderCard.Priority
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         sourceCardID: UUID? = nil,
         title: String,
@@ -27,9 +27,9 @@ struct ReminderCreationRequest: Codable, Hashable, Identifiable, Sendable {
         self.priority = priority
     }
 
-    init(card: ReminderCard) {
+    nonisolated init(card: ReminderCard) {
         self.init(
-            sourceCardID: card.id,
+            sourceCardID: card.metadata.id,
             title: card.title,
             notes: card.notes,
             dueDate: card.dueDate,

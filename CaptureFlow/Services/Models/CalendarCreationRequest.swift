@@ -9,7 +9,7 @@ struct CalendarCreationRequest: Codable, Hashable, Identifiable, Sendable {
     var location: String?
     var notes: String
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         sourceCardID: UUID? = nil,
         title: String,
@@ -27,9 +27,9 @@ struct CalendarCreationRequest: Codable, Hashable, Identifiable, Sendable {
         self.notes = notes
     }
 
-    init(card: CalendarCard) {
+    nonisolated init(card: CalendarCard) {
         self.init(
-            sourceCardID: card.id,
+            sourceCardID: card.metadata.id,
             title: card.title,
             startDate: card.startDate,
             endDate: card.endDate,

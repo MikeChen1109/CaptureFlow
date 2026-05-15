@@ -3,13 +3,13 @@ import SwiftUI
 struct HomeView: View {
     @StateObject private var viewModel: HomeViewModel
     private let onCreateCard: () -> Void
-    private let onSelectCard: (ActionCard) -> Void
+    private let onSelectCard: (SavedInsightCard) -> Void
     private let onOpenSettings: () -> Void
 
     init(
         viewModel: HomeViewModel,
         onCreateCard: @escaping () -> Void = {},
-        onSelectCard: @escaping (ActionCard) -> Void = { _ in },
+        onSelectCard: @escaping (SavedInsightCard) -> Void = { _ in },
         onOpenSettings: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -39,6 +39,33 @@ struct HomeView: View {
         .task {
             await viewModel.loadIfNeeded()
         }
+        .overlay(alignment: .top) {
+            if let actionMessage = viewModel.actionMessage {
+                ActionToast(message: actionMessage)
+                    .padding(.horizontal, CFSpacing.large)
+                    .padding(.top, CFSpacing.large)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .onChange(of: viewModel.actionMessage) { _, newValue in
+            guard let newValue else {
+                return
+            }
+
+            Task {
+                try? await Task.sleep(for: .seconds(1.8))
+                await MainActor.run {
+                    guard viewModel.actionMessage == newValue else {
+                        return
+                    }
+
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.clearActionMessage()
+                    }
+                }
+            }
+        }
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.actionMessage)
         .tint(CFColors.primaryOrange)
     }
 
@@ -64,7 +91,7 @@ struct HomeView: View {
     }
 
     private var intro: some View {
-        Text("Turn captured context into action cards.")
+        Text("Turn captured context into useful insight cards.")
             .font(CFTypography.callout)
             .foregroundStyle(CFColors.textSecondary)
     }
@@ -128,34 +155,71 @@ struct HomeView: View {
     }
 
     private var actionButtons: some View {
-        CFPrimaryButton("New Card", systemImage: "plus.viewfinder", action: onCreateCard)
+        CFPrimaryButton("New Insight", systemImage: "plus.viewfinder", action: onCreateCard)
     }
 
     @ViewBuilder
     private var content: some View {
         if viewModel.cards.isEmpty {
             CFEmptyStateView(
-                title: "No cards yet",
-                message: "Create a new card from a photo or imported image.",
+                title: "No insights yet",
+                message: "Create a new insight from a photo or imported image.",
                 systemImage: "rectangle.stack.badge.plus"
             )
         } else {
             VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                Text("Recent Cards")
+                Text("Recent Insights")
                     .font(CFTypography.headline)
                     .foregroundStyle(CFColors.textPrimary)
 
                 LazyVStack(spacing: CFSpacing.medium) {
                     ForEach(viewModel.cards) { card in
-                        Button {
-                            onSelectCard(card)
-                        } label: {
-                            CardRowView(card: card)
-                        }
-                        .buttonStyle(.plain)
+                        CardRowView(
+                            card: card,
+                            isCreatingReminder: viewModel.creatingReminderCardID == card.id,
+                            isCreatingCalendar: viewModel.creatingCalendarCardID == card.id,
+                            onSelect: {
+                                onSelectCard(card)
+                            },
+                            onCreateReminder: {
+                                Task {
+                                    await viewModel.createReminder(for: card.id)
+                                }
+                            },
+                            onCreateCalendar: {
+                                Task {
+                                    await viewModel.createCalendarEvent(for: card.id)
+                                }
+                            }
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+private struct ActionToast: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: CFSpacing.small) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(CFColors.success)
+
+            Text(message)
+                .font(CFTypography.callout.weight(.semibold))
+                .foregroundStyle(CFColors.textPrimary)
+
+            Spacer(minLength: 0)
+        }
+        .padding(CFSpacing.medium)
+        .background(CFColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous)
+                .stroke(CFColors.success.opacity(0.35), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 10)
     }
 }

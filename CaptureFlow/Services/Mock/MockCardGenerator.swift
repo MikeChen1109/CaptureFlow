@@ -7,13 +7,8 @@ struct MockCardGenerator: CardGenerating {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let content = GeneratedCardContent.fallback(from: context)
-                    let card = Self.placeholderCard(from: context)
-
-                    for partial in Self.partials(from: content) {
-                        continuation.yield(.partialContent(partial))
-                        try await Task.sleep(for: .milliseconds(120))
-                    }
+                    let content = GeneratedInsightCard.fallback(from: context)
+                    let card = Self.placeholderCard(from: context, insight: content)
 
                     continuation.yield(.completed(card: card, content: content))
                     continuation.finish()
@@ -28,33 +23,35 @@ struct MockCardGenerator: CardGenerating {
         }
     }
 
-    static func placeholderCard(from context: VisionUnderstandingContext) -> ActionCard {
+    static func placeholderCard(from context: VisionUnderstandingContext, insight: GeneratedInsightCard? = nil) -> ActionCard {
         let metadata = CardMetadata(
             sourceImage: context.sourceImage,
             confidence: context.confidence,
             confidenceScore: context.confidenceScore
         )
 
-        let fallbackTitle = context.sceneTitle
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty
-            ? context.recommendedPlanTitle
-            : context.sceneTitle
+        let fallbackTitle = insight?.title.nonEmpty
+            ?? context.sceneTitle.nonEmpty
+            ?? context.recommendedPlanTitle.nonEmpty
+            ?? "Screenshot Insight"
+        let summary = insight?.summary?.nonEmpty
+            ?? insight?.sections.first?.content.nonEmpty
+            ?? context.sceneSummary
 
         switch context.resolvedCardType {
         case .auto, .note:
             return .note(
                 NoteCard(
                     metadata: metadata,
-                    title: fallbackTitle.isEmpty ? "Generated Note" : fallbackTitle,
-                    summary: context.sceneSummary
+                    title: fallbackTitle,
+                    summary: summary
                 )
             )
         case .reminder:
             return .reminder(
                 ReminderCard(
                     metadata: metadata,
-                    title: fallbackTitle.isEmpty ? "Generated Reminder" : fallbackTitle
+                    title: fallbackTitle
                 )
             )
         case .calendar:
@@ -62,7 +59,7 @@ struct MockCardGenerator: CardGenerating {
             return .calendar(
                 CalendarCard(
                     metadata: metadata,
-                    title: fallbackTitle.isEmpty ? "Generated Event" : fallbackTitle,
+                    title: fallbackTitle,
                     startDate: startDate,
                     endDate: startDate.addingTimeInterval(3600)
                 )
@@ -71,7 +68,8 @@ struct MockCardGenerator: CardGenerating {
             return .shopping(
                 ShoppingCard(
                     metadata: metadata,
-                    productName: fallbackTitle.isEmpty ? "Generated Item" : fallbackTitle
+                    productName: fallbackTitle,
+                    notes: summary
                 )
             )
         case .job:
@@ -79,24 +77,17 @@ struct MockCardGenerator: CardGenerating {
                 JobCard(
                     metadata: metadata,
                     company: "Unknown company",
-                    role: fallbackTitle.isEmpty ? "Generated Job" : fallbackTitle,
-                    detail: ""
+                    role: fallbackTitle,
+                    detail: summary
                 )
             )
         }
     }
+}
 
-    private static func partials(from content: GeneratedCardContent) -> [GeneratedContentPartial] {
-        let summaryTokens = content.summary.split(separator: " ")
-        let firstSummaryChunk = summaryTokens.prefix(8).joined(separator: " ")
-
-        return [
-            GeneratedContentPartial(summary: firstSummaryChunk),
-            GeneratedContentPartial(summary: content.summary),
-            GeneratedContentPartial(planTitle: content.planTitle, planSteps: content.planSteps),
-            GeneratedContentPartial(keyDetails: content.keyDetails),
-            GeneratedContentPartial(missingInfo: content.missingInfo),
-            GeneratedContentPartial(sourceReasoning: content.sourceReasoning)
-        ]
+private extension String {
+    var nonEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

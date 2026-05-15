@@ -8,7 +8,7 @@ struct ExternalActionResult: Codable, Hashable, Identifiable, Sendable {
     var displayName: String
     var createdAt: Date
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         kind: ExternalActionKind,
         sourceCardID: UUID? = nil,

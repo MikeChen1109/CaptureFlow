@@ -1,16 +1,21 @@
 import SwiftUI
+import UIKit
 
 struct CardDetailView: View {
     @StateObject private var viewModel: CardDetailViewModel
+    @State private var previewSourceImage: SourceImagePreview?
+    let onCardUpdated: (SavedInsightCard) -> Void
     let onCardDeleted: () -> Void
     let onClose: () -> Void
 
     init(
         viewModel: CardDetailViewModel,
+        onCardUpdated: @escaping (SavedInsightCard) -> Void = { _ in },
         onCardDeleted: @escaping () -> Void = {},
         onClose: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.onCardUpdated = onCardUpdated
         self.onCardDeleted = onCardDeleted
         self.onClose = onClose
     }
@@ -23,11 +28,14 @@ struct CardDetailView: View {
             .padding(CFSpacing.large)
         }
         .background(CFColors.background.ignoresSafeArea())
-        .navigationTitle("Card Detail")
+        .navigationTitle("Insight Detail")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task {
             await viewModel.load()
+        }
+        .sheet(item: $previewSourceImage) { preview in
+            SourceImagePreviewView(preview: preview)
         }
     }
 
@@ -47,23 +55,23 @@ struct CardDetailView: View {
         } else if let card = viewModel.card {
             header(card)
             sourceSection(card)
-            markdownSection(card)
+            insightSections(card)
             actions
         } else {
             CFEmptyStateView(
-                title: "Card unavailable",
-                message: viewModel.errorMessage ?? "This card may have been deleted.",
+                title: "Insight unavailable",
+                message: viewModel.errorMessage ?? "This insight may have been deleted.",
                 systemImage: "exclamationmark.triangle"
             )
         }
     }
 
-    private func header(_ card: ActionCard) -> some View {
+    private func header(_ card: SavedInsightCard) -> some View {
         CFCardContainer {
             VStack(alignment: .leading, spacing: CFSpacing.large) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: CFSpacing.small) {
-                        Text(card.type.displayName)
+                        Text("Insight")
                             .font(CFTypography.caption)
                             .foregroundStyle(CFColors.orangeHighlight)
 
@@ -71,59 +79,120 @@ struct CardDetailView: View {
                             .font(CFTypography.title)
                             .foregroundStyle(CFColors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
-
-                        Text(statusText(card))
-                            .font(CFTypography.callout)
-                            .foregroundStyle(statusTint(card))
                     }
                 }
             }
         }
     }
 
-    private func sourceSection(_ card: ActionCard) -> some View {
-        CFCardContainer {
+    private func sourceSection(_ card: SavedInsightCard) -> some View {
+        let presentation = SourceImagePresentation(card: card)
+
+        return CFCardContainer {
             HStack(spacing: CFSpacing.medium) {
-                Image(systemName: sourceImageName(card))
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(CFColors.background)
-                    .frame(width: 52, height: 52)
-                    .background(CFColors.primaryOrange)
-                    .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous))
+                sourceThumbnail(presentation)
 
                 VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
-                    Text("Source Image")
+                    Text(presentation.title)
                         .font(CFTypography.headline)
                         .foregroundStyle(CFColors.textPrimary)
 
-                    Text(sourceText(card))
+                    Text(presentation.subtitle)
                         .font(CFTypography.callout)
                         .foregroundStyle(CFColors.textSecondary)
                         .lineLimit(2)
+
+                    Text(presentation.hint)
+                        .font(CFTypography.caption)
+                        .foregroundStyle(CFColors.placeholderText)
+                        .lineLimit(1)
                 }
 
                 Spacer()
+
+                if presentation.preview != nil {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(CFColors.placeholderText)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                previewSourceImage = presentation.preview
             }
         }
     }
 
-    private func markdownSection(_ card: ActionCard) -> some View {
-        CFCardContainer {
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                Text("Markdown")
-                    .font(CFTypography.headline)
-                    .foregroundStyle(CFColors.textPrimary)
+    @ViewBuilder
+    private func sourceThumbnail(_ presentation: SourceImagePresentation) -> some View {
+        if let preview = presentation.preview {
+            Image(uiImage: preview.image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 56, height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous)
+                        .stroke(CFColors.border, lineWidth: 1)
+                }
+        } else {
+            Image(systemName: presentation.systemImage)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(CFColors.background)
+                .frame(width: 56, height: 56)
+                .background(CFColors.primaryOrange)
+                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous))
+        }
+    }
 
-                Text(card.markdown)
-                    .font(CFTypography.callout)
-                    .foregroundStyle(CFColors.textSecondary)
-                    .textSelection(.enabled)
+    private func insightSections(_ card: SavedInsightCard) -> some View {
+        VStack(alignment: .leading, spacing: CFSpacing.large) {
+            ForEach(card.insight.sections.sorted { $0.priority < $1.priority }) { section in
+                InsightSectionView(section: section)
             }
         }
     }
 
     private var actions: some View {
         VStack(spacing: CFSpacing.medium) {
+            if viewModel.showsExternalActions {
+                HStack(spacing: CFSpacing.medium) {
+                    if viewModel.showsReminderAction {
+                        CFSecondaryButton(
+                            viewModel.didCreateReminder
+                                ? "Reminder Created"
+                                : viewModel.isCreatingReminder ? "Creating..." : "Add Reminder",
+                            systemImage: viewModel.didCreateReminder ? "checkmark.circle.fill" : "bell.badge.fill",
+                            tone: viewModel.didCreateReminder ? .success : .normal,
+                            isDisabled: !viewModel.canCreateReminder || viewModel.didCreateReminder || viewModel.isArchiving || viewModel.isDeleting
+                        ) {
+                            Task {
+                                if let updatedCard = await viewModel.createReminder() {
+                                    onCardUpdated(updatedCard)
+                                }
+                            }
+                        }
+                    }
+
+                    if viewModel.showsCalendarAction {
+                        CFSecondaryButton(
+                            viewModel.didCreateCalendar
+                                ? "Calendar Created"
+                                : viewModel.isCreatingCalendar ? "Creating..." : "Add Calendar",
+                            systemImage: viewModel.didCreateCalendar ? "checkmark.circle.fill" : "calendar.badge.plus",
+                            tone: viewModel.didCreateCalendar ? .success : .normal,
+                            isDisabled: !viewModel.canCreateCalendar || viewModel.didCreateCalendar || viewModel.isArchiving || viewModel.isDeleting
+                        ) {
+                            Task {
+                                if let updatedCard = await viewModel.createCalendarEvent() {
+                                    onCardUpdated(updatedCard)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             CFSecondaryButton(
                 viewModel.didCopyMarkdown ? "Markdown Copied" : "Copy Markdown",
                 systemImage: viewModel.didCopyMarkdown ? "checkmark" : "doc.on.doc.fill",
@@ -139,7 +208,8 @@ struct CardDetailView: View {
                     isDisabled: viewModel.isArchiving || viewModel.isDeleting
                 ) {
                     Task {
-                        if await viewModel.archive() {
+                        if let updatedCard = await viewModel.archive() {
+                            onCardUpdated(updatedCard)
                             onClose()
                         }
                     }
@@ -176,43 +246,95 @@ struct CardDetailView: View {
         }
     }
 
-    private func statusText(_ card: ActionCard) -> String {
-        "Status: \(card.status.rawValue.capitalized)"
-    }
+}
 
-    private func statusTint(_ card: ActionCard) -> Color {
-        switch card.status {
-        case .pending:
-            CFColors.warning
-        case .saved:
-            CFColors.info
-        case .completed:
-            CFColors.success
-        case .archived:
-            CFColors.textSecondary
-        }
-    }
+@MainActor
+private struct SourceImagePresentation {
+    let title: String
+    let subtitle: String
+    let hint: String
+    let systemImage: String
+    let preview: SourceImagePreview?
 
-    private func sourceText(_ card: ActionCard) -> String {
-        guard let sourceImage = card.sourceImage else {
-            return "Mock source"
-        }
+    init(card: SavedInsightCard) {
+        let sourceImage = card.sourceImage
+        preview = sourceImage.flatMap(SourceImagePreview.init(sourceImage:))
 
-        let source = sourceImage.source.rawValue
-            .replacingOccurrences(of: "photoLibrary", with: "photo library")
-        return sourceImage.originalFilename ?? source.capitalized
-    }
-
-    private func sourceImageName(_ card: ActionCard) -> String {
-        switch card.sourceImage?.source {
-        case .camera:
-            "camera.fill"
+        switch sourceImage?.source {
         case .photoLibrary:
-            "photo.on.rectangle"
+            title = "Source Image"
+            subtitle = "From Photos Library"
+            hint = preview == nil ? "Original preview unavailable" : "Tap to preview original"
+            systemImage = "photo.on.rectangle"
+        case .camera:
+            title = "Original Screenshot"
+            subtitle = "Saved in CaptureFlow"
+            hint = preview == nil ? "Original preview unavailable" : "Tap to view"
+            systemImage = "camera.fill"
         case .shareExtension:
-            "square.and.arrow.down.fill"
+            title = "Source Image"
+            subtitle = "Imported from Share Sheet"
+            hint = preview == nil ? "Original preview unavailable" : "Tap to preview original"
+            systemImage = "square.and.arrow.down.fill"
         case .mock, .none:
-            "sparkles"
+            title = "Source Image"
+            subtitle = "Prototype sample"
+            hint = "Original preview unavailable"
+            systemImage = "sparkles"
         }
+    }
+}
+
+private struct SourceImagePreview: Identifiable {
+    let id: UUID
+    let image: UIImage
+    let title: String
+
+    init?(sourceImage: CardSourceImage) {
+        guard let localPath = sourceImage.localPath,
+              let image = UIImage(contentsOfFile: localPath)
+        else {
+            return nil
+        }
+
+        self.id = sourceImage.id
+        self.image = image
+        self.title = switch sourceImage.source {
+        case .camera:
+            "Original Screenshot"
+        case .photoLibrary, .shareExtension:
+            "Source Image"
+        case .mock:
+            "Prototype Source"
+        }
+    }
+}
+
+private struct SourceImagePreviewView: View {
+    let preview: SourceImagePreview
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                CFColors.background.ignoresSafeArea()
+
+                Image(uiImage: preview.image)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(CFSpacing.large)
+            }
+            .navigationTitle(preview.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundStyle(CFColors.orangeHighlight)
+                }
+            }
+        }
+        .presentationDetents([.large])
     }
 }

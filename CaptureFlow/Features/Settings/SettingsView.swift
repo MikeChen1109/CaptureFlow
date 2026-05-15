@@ -42,7 +42,7 @@ struct SettingsView: View {
         CFCardContainer {
             VStack(alignment: .leading, spacing: CFSpacing.medium) {
                 labelRow("Vision analysis", value: "MockVisionAnalyzer")
-                labelRow("Card generation", value: "Apple Foundation Models")
+                labelRow("Insight generation", value: "Apple Foundation Models")
                 labelRow("Credits", value: "MockCreditProvider")
                 labelRow("Storage", value: "In-memory repository")
                 labelRow("External actions", value: "Mock Reminder / Calendar")

@@ -3,7 +3,7 @@ import SwiftUI
 struct CardResultView: View {
     @ObservedObject private var viewModel: CardResultViewModel
     @State private var isFinishing = false
-    private let onFinish: ((ActionCard) -> Void)?
+    private let onFinish: ((SavedInsightCard) -> Void)?
     private let onCancel: (() -> Void)?
     private let onRetry: (() -> Void)?
     private let revealedSectionCount: Int?
@@ -11,7 +11,7 @@ struct CardResultView: View {
 
     init(
         viewModel: CardResultViewModel,
-        onFinish: ((ActionCard) -> Void)? = nil,
+        onFinish: ((SavedInsightCard) -> Void)? = nil,
         onCancel: (() -> Void)? = nil,
         onRetry: (() -> Void)? = nil,
         revealedSectionCount: Int? = nil,
@@ -28,8 +28,13 @@ struct CardResultView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
-                CardResultHeader(card: viewModel.card)
-                GeneratedSectionStack(sectionStates: visibleSectionStates)
+                if let insightCard = viewModel.generatedContent {
+                    CardResultHeader(card: insightCard)
+                    UsefulnessMessage(usefulness: insightCard.usefulness)
+                    GeneratedSectionStack(sectionStates: visibleSectionStates)
+                } else {
+                    CardTypeHeader(card: viewModel.card)
+                }
 
                 if viewModel.isGenerationCompleted && isResultFullyRevealed {
                     CustomFieldsSection(viewModel: viewModel)
@@ -60,7 +65,7 @@ struct CardResultView: View {
             .padding(CFSpacing.large)
         }
         .background(CFColors.background.ignoresSafeArea())
-        .navigationTitle("Card Result")
+        .navigationTitle("Insight")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(onFinish != nil)
         .toolbarColorScheme(.dark, for: .navigationBar)
@@ -80,17 +85,10 @@ struct CardResultView: View {
 
     private var visibleSectionStates: [GeneratedSectionState] {
         if let revealedSectionCount {
-            let completedStates = viewModel.sectionStates.filter { $0.content != nil }
-            return Array(completedStates.prefix(max(revealedSectionCount, 0)))
+            return Array(viewModel.sectionStates.prefix(max(revealedSectionCount, 0)))
         }
 
-        let started = Array(viewModel.sectionStates.prefix { $0.status != .waiting })
-        guard !started.isEmpty else {
-            return viewModel.generationStatus == .generating
-                ? Array(viewModel.sectionStates.prefix(1))
-                : []
-        }
-        return started
+        return viewModel.sectionStates
     }
 
     private var primaryActionTitle: String {
@@ -111,19 +109,20 @@ struct CardResultView: View {
 
     private func saveAndFinishIfNeeded() {
         Task {
-            let didSave = await viewModel.save()
-            guard didSave, let onFinish else {
+            guard let savedCard = await viewModel.save(),
+                  let onFinish
+            else {
                 return
             }
 
             isFinishing = true
             try? await Task.sleep(for: .milliseconds(700))
-            onFinish(viewModel.card)
+            onFinish(savedCard)
         }
     }
 }
 
-private struct CardResultHeader: View {
+private struct CardTypeHeader: View {
     let card: ActionCard
 
     var body: some View {
@@ -135,13 +134,74 @@ private struct CardResultHeader: View {
     }
 }
 
+private struct CardResultHeader: View {
+    let card: GeneratedInsightCard
+
+    var body: some View {
+        CFCardContainer {
+            VStack(alignment: .leading, spacing: CFSpacing.medium) {
+                HStack(alignment: .top, spacing: CFSpacing.medium) {
+                    Image(systemName: "sparkles.rectangle.stack")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(CFColors.background)
+                        .frame(width: 34, height: 34)
+                        .background(CFColors.orangeHighlight)
+                        .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
+                        Text(card.title)
+                            .font(CFTypography.title)
+                            .foregroundStyle(CFColors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                if let summary = card.summary?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !summary.isEmpty {
+                    Text(summary)
+                        .font(CFTypography.callout)
+                        .foregroundStyle(CFColors.textSecondary)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+}
+
+private struct UsefulnessMessage: View {
+    let usefulness: InsightUsefulness
+
+    var body: some View {
+        if let message = usefulness.message {
+            HStack(alignment: .top, spacing: CFSpacing.medium) {
+                Image(systemName: usefulness.messageIcon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(usefulness.messageColor)
+                    .frame(width: 22, height: 22)
+
+                Text(message)
+                    .font(CFTypography.callout)
+                    .foregroundStyle(CFColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(CFSpacing.medium)
+            .background(CFColors.secondarySurface)
+            .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
+        }
+    }
+}
+
 private struct GeneratedSectionStack: View {
     let sectionStates: [GeneratedSectionState]
 
     var body: some View {
         VStack(alignment: .leading, spacing: CFSpacing.large) {
             ForEach(Array(sectionStates.enumerated()), id: \.element.id) { index, state in
-                GeneratedSectionCard(state: state)
+                InsightSectionView(section: state.section, status: state.status)
                     .transition(.cfSectionReveal)
                     .zIndex(Double(sectionStates.count - index))
             }
@@ -318,6 +378,45 @@ private extension CardType {
             "bag.fill"
         case .job:
             "briefcase.fill"
+        }
+    }
+}
+
+private extension InsightUsefulness {
+    var message: String? {
+        switch self {
+        case .useful:
+            nil
+        case .partiallyUseful:
+            "This screenshot may be useful, but some context is missing."
+        case .lowInformation:
+            "Not enough useful information. The screenshot does not contain enough clear context to generate a useful card."
+        case .unclear:
+            "I'm not sure what this screenshot is for. Add a short note to give CaptureFlow more context."
+        }
+    }
+
+    var messageIcon: String {
+        switch self {
+        case .useful:
+            "checkmark.circle"
+        case .partiallyUseful:
+            "info.circle"
+        case .lowInformation:
+            "exclamationmark.triangle"
+        case .unclear:
+            "questionmark.circle"
+        }
+    }
+
+    var messageColor: Color {
+        switch self {
+        case .useful:
+            CFColors.success
+        case .partiallyUseful, .unclear:
+            CFColors.orangeHighlight
+        case .lowInformation:
+            CFColors.warning
         }
     }
 }

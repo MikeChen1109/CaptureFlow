@@ -351,10 +351,14 @@ struct MockVisionAnalyzer: VisionAnalyzing {
     private func resolvedType(for selectedCardType: CardType) -> CardType {
         switch selectedCardType {
         case .auto:
-            .shopping
+            Self.randomMockCardType()
         default:
             selectedCardType
         }
+    }
+
+    private static func randomMockCardType() -> CardType {
+        [.reminder, .calendar, .note, .shopping, .job].randomElement() ?? .shopping
     }
 
     private func debugLog(_ message: String) {

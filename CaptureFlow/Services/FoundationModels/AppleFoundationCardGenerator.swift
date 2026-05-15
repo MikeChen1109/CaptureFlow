@@ -33,24 +33,12 @@ struct AppleFoundationCardGenerator: CardGenerating {
                         instructions: Self.contentInstructions
                     )
                     
-                    let stream = session.streamResponse(
+                    let response = try await session.respond(
                         to: Self.contentPrompt(for: context),
                         generating: AppleFoundationGeneratedCardContent.self,
                         options: Self.generationOptions
                     )
-                    
-                    var latestDraft: AppleFoundationGeneratedCardContent.PartiallyGenerated?
-                    
-                    for try await partialResponse in stream {
-                        latestDraft = partialResponse.content
-                        continuation.yield(.partialContent(partialResponse.content.generatedContentPartial))
-                    }
-                    
-                    guard let latestDraft else {
-                        throw ServiceError.invalidGeneratedCard
-                    }
-                    
-                    let content = try latestDraft.generatedContent()
+                    let content = try response.content.insightCard()
                     let card = makeActionCard(from: content, context: context)
                     
                     continuation.yield(.completed(card: card, content: content))
@@ -67,50 +55,52 @@ struct AppleFoundationCardGenerator: CardGenerating {
     }
     
     private func makeActionCard(
-        from content: GeneratedCardContent,
+        from content: GeneratedInsightCard,
         context: VisionUnderstandingContext
     ) -> ActionCard {
-        let baseCard = MockCardGenerator.placeholderCard(from: context)
+        let baseCard = MockCardGenerator.placeholderCard(from: context, insight: content)
+        let summary = content.summary ?? content.sections.first?.content ?? context.sceneSummary
         
         switch baseCard {
         case .note(var note):
-            note.title = context.fallbackTitle
-            note.summary = content.summary
-            note.bullets = content.planSteps.map(\.title).nonEmpty(or: note.bullets)
-            note.items = content.recommendedActions.map(\.title)
+            note.title = content.title
+            note.summary = summary
+            note.bullets = content.sections
+                .filter { $0.kind == .checklist || $0.kind == .suggestedActions }
+                .map(\.title)
             note.metadata.updatedAt = .now
             return .note(note)
         case .reminder(var reminder):
-            reminder.title = context.fallbackTitle
-            reminder.notes = content.summary
+            reminder.title = content.title
+            reminder.notes = summary
             reminder.location = context.entityValues(for: .location).first
             reminder.dueDate = context.firstDetectedDate
             reminder.metadata.updatedAt = .now
             return .reminder(reminder)
         case .calendar(var calendar):
             let startDate = context.firstDetectedDate ?? calendar.startDate
-            calendar.title = context.fallbackTitle
+            calendar.title = content.title
             calendar.startDate = startDate
             calendar.endDate = max(calendar.endDate, startDate.addingTimeInterval(60 * 60))
             calendar.location = context.entityValues(for: .location).first
-            calendar.notes = content.summary
+            calendar.notes = summary
             calendar.metadata.updatedAt = .now
             return .calendar(calendar)
         case .shopping(var shopping):
-            shopping.productName = context.fallbackTitle
+            shopping.productName = content.title
             shopping.price = context.entityValues(for: .price).first
             shopping.merchant = context.entityValues(for: .store).first
             shopping.offer = context.entityValues(for: .promotion).first
-            shopping.notes = content.summary
+            shopping.notes = summary
             shopping.metadata.updatedAt = .now
             return .shopping(shopping)
         case .job(var job):
             job.company = context.entityValues(for: .company).first ?? job.company
-            job.role = context.fallbackTitle
+            job.role = content.title
             job.skills = context.entityValues(for: .skill)
             job.contact = context.entityValues(for: .contact).first
-            job.detail = content.planSteps.map(\.detail).joined(separator: "\n")
-            job.notes = content.summary
+            job.detail = summary
+            job.notes = summary
             job.date = context.firstDetectedDate
             job.metadata.updatedAt = .now
             return .job(job)
@@ -129,22 +119,24 @@ struct AppleFoundationCardGenerator: CardGenerating {
     }
     
     private static let contentInstructions = """
-    You turn local image understanding context into GeneratedCardContent for CaptureFlow.
+    You are an assistant that turns screenshot analysis context into useful, concise insight cards.
+    
+    Your job is not to summarize everything.
+    Your job is to decide what information is useful for the user.
     
     Use the provided context as the only factual source.
-    You may rewrite, combine, prioritize, and simplify supported information to make the result useful.
     Do not invent people, dates, locations, prices, companies, stores, URLs, contact details, salary, deadlines, or attendees.
     
-    Write for a user-facing action card:
-    - concise
-    - practical
-    - specific
-    - action-oriented
-    - no filler
-    - no generic assistant phrasing
-    
-    If useful information is missing or uncertain, put it in missingInfo.
-    If a field has no supported content, return an empty string or an empty array.
+    Rules:
+    - Do not force a fixed template.
+    - Generate only sections that are useful.
+    - Generate between 1 and 5 sections.
+    - If the context has little value, say so clearly.
+    - Prefer practical next steps over generic summaries.
+    - Do not invent details not present in the context.
+    - If important information is missing, include a missing information section.
+    - Keep each section concise.
+    - Section kind is for UI presentation only, not product classification.
     """
     
     private static let generationOptions = GenerationOptions(
@@ -160,66 +152,51 @@ struct AppleFoundationCardGenerator: CardGenerating {
         let constraints = joinedPromptValues(context.constraints)
         
         var lines: [String] = [
-            "Build GeneratedCardContent from the provided local image understanding context.",
+            "Build a GeneratedInsightCard from the provided local image understanding context.",
             "",
-            "The selected card type is represented by requestedCardType when it is not auto.",
             "Use the provided context as the only factual source.",
-            "You may rewrite, combine, prioritize, and simplify supported information to make the result useful.",
+            "Decide what information is genuinely useful for this screenshot.",
             "Do not invent people, dates, locations, prices, companies, stores, URLs, contact details, salary, deadlines, attendees, or tasks.",
             "",
             "Output quality goals:",
-            "- Make the result useful as a user-facing action card, not a raw extraction.",
+            "- Make the result useful as a user-facing insight card, not a raw extraction.",
             "- Be concise, specific, practical, and action-oriented.",
-            "- Prefer concrete details over generic descriptions.",
+            "- Prefer practical next steps over generic summaries.",
+            "- Generate only sections that are useful.",
+            "- Generate between 1 and 5 sections.",
+            "- Do not force checklist, draft, or actions when they are not useful.",
             "- Do not include filler or meta commentary.",
             "- Do not start with generic phrases like \"This image appears to show\" unless uncertainty is important.",
-            "- If a field has no supported content, return an empty string or an empty array.",
-            "- If useful information is missing or uncertain, put that gap in missingInfo instead of guessing.",
+            "- If useful information is missing or uncertain, include one missingInfo section instead of guessing.",
             "",
             "Required output shape:",
             "",
+            "title:",
+            "- Short, specific title based only on context.",
+            "",
+            "usefulness:",
+            "- useful: enough context to provide clear value.",
+            "- partiallyUseful: some value exists, but important context is missing.",
+            "- lowInformation: visible context is too thin for a useful card.",
+            "- unclear: the screenshot purpose cannot be inferred.",
+            "",
+            "confidence:",
+            "- 0.0 to 1.0 based on how well supported the card is by the context.",
+            "",
             "summary:",
-            "- First summarize what the image is about.",
-            "- Include important visible facts such as product, price, and promotion.",
-            "- Mention a next action only in the final sentence and only when supported.",
+            "- Optional. Include only when it adds value beyond the sections.",
             "",
-            "planTitle:",
-            "- Use recommendedPlanTitle when it is suitable.",
-            "- You may lightly refine wording for clarity.",
-            "- Do not add new facts.",
-            "",
-            "planSteps:",
-            "- Create practical steps based mainly on possibleActions, requestedCardType, and recommendedPlanTitle.",
-            "- You may reference entities, missingInfo, and constraints only when needed to make the steps clearer or more useful.",
-            "- If an action depends on missing information, turn it into a clarification step instead of dropping it.",
-            "- Do not create steps that require unsupported facts.",
-            "",
-            "keyDetails:",
-            "- Use entities as the primary factual source.",
-            "- You may also include important visibleText items when they are clear product facts.",
-            "- Rewrite details into concise, user-facing labels and values.",
-            "- Do not include evidence explanations here.",
-            "",
-            "missingInfo:",
-            "- Include only information that is explicitly missing, uncertain, or constrained by missingInfo and constraints.",
-            "- Rewrite raw keywords into short user-facing sentences.",
-            "- Prefer concrete gaps such as \"Store name is not visible\" over raw labels such as \"store\".",
-            "- If an action depends on missing information, mention the missing requirement here instead of guessing.",
-            "- Do not add generic missing items.",
-            "",
-            "recommendedActions:",
-            "- Use possibleActions as the factual source.",
-            "- Rewrite them into clear action labels or short actionable sentences.",
-            "- Do not add new actions.",
-            "",
-            "sourceReasoning:",
-            "- Use evidence only.",
-            "- Briefly explain what visible clues support the generated content.",
-            "- Do not include hidden assumptions.",
+            "sections:",
+            "- Generate 1 to 5 concise sections.",
+            "- Allowed section kinds: summary, keyDetails, suggestedActions, checklist, draft, missingInfo, warning, tags, note.",
+            "- Use missingInfo when key details required for useful action are absent.",
+            "- Use draft only when a ready-to-send reply or reusable text is clearly useful.",
+            "- Use checklist only when the screenshot actually contains or implies checkable tasks.",
+            "- Use suggestedActions for practical next steps supported by context.",
+            "- Use tags for compact labels only when they help retrieval.",
+            "- priority starts at 1; lower priority appears first.",
             "",
             "Context:",
-            "Requested card type: \(context.requestedCardType.rawValue)",
-            "Resolved card type: \(context.resolvedCardType.rawValue)",
             "Scene title: \(context.sceneTitle)",
             "Visible text: \(visibleText)",
             "Entities: \(context.entities.promptLines)",
@@ -265,246 +242,127 @@ struct AppleFoundationCardGenerator: CardGenerating {
 @available(iOS 26.0, *)
 @Generable
 private struct AppleFoundationGeneratedCardContent {
-    var summary: String
-    var planTitle: String
-    var planSteps: [AppleFoundationGeneratedPlanStep]
-    var keyDetails: [AppleFoundationGeneratedField]
-    var recommendedActions: [AppleFoundationGeneratedAction]
-    var missingInfo: [String]
-    var sourceReasoning: [String]
-}
-
-@available(iOS 26.0, *)
-@Generable
-private struct AppleFoundationGeneratedPlanStep {
     var title: String
-    var detail: String
-    var actionType: AppleFoundationGeneratedActionType
-}
-
-@available(iOS 26.0, *)
-@Generable
-private struct AppleFoundationGeneratedField {
-    var label: String
-    var value: String
-    var type: AppleFoundationGeneratedEntityType
+    var usefulness: AppleFoundationInsightUsefulness
     var confidence: Double
+    var summary: String
+    var sections: [AppleFoundationInsightSection]
 }
 
 @available(iOS 26.0, *)
 @Generable
-private struct AppleFoundationGeneratedAction {
+private struct AppleFoundationInsightSection {
+    var kind: AppleFoundationInsightSectionKind
     var title: String
-    var description: String
-    var actionType: AppleFoundationGeneratedActionType
+    var content: String
+    var priority: Int
 }
 
 @available(iOS 26.0, *)
 @Generable
-private enum AppleFoundationGeneratedActionType {
-    case save
-    case reminder
-    case calendar
-    case copy
-    case share
-    case compare
-    case followUp
-    case custom
+private enum AppleFoundationInsightUsefulness {
+    case useful
+    case partiallyUseful
+    case lowInformation
+    case unclear
 }
 
 @available(iOS 26.0, *)
 @Generable
-private enum AppleFoundationGeneratedEntityType {
-    case product
-    case price
-    case promotion
-    case store
-    case date
-    case time
-    case location
-    case company
-    case role
-    case skill
-    case url
-    case contact
+private enum AppleFoundationInsightSectionKind {
+    case summary
+    case keyDetails
+    case suggestedActions
+    case checklist
+    case draft
+    case missingInfo
+    case warning
+    case tags
     case note
-    case event
-    case unknown
 }
 
 @available(iOS 26.0, *)
-private extension AppleFoundationGeneratedCardContent.PartiallyGenerated {
-    var generatedContentPartial: GeneratedContentPartial {
-        GeneratedContentPartial(
+private extension AppleFoundationGeneratedCardContent {
+    func insightCard() throws -> GeneratedInsightCard {
+        let sections = mappedSections
+        guard let title = title.nonEmpty, !sections.isEmpty else {
+            throw ServiceError.invalidGeneratedCard
+        }
+        
+        return GeneratedInsightCard(
+            title: title,
+            usefulness: usefulness.insightUsefulness,
+            confidence: confidence.clamped(to: 0...1),
             summary: summary.nonEmpty,
-            planTitle: planTitle.nonEmpty,
-            planSteps: mappedPlanSteps,
-            recommendedActions: mappedRecommendedActions,
-            keyDetails: mappedKeyDetails,
-            missingInfo: mappedMissingInfo,
-            sourceReasoning: mappedSourceReasoning
+            sections: sections
         )
     }
     
-    func generatedContent() throws -> GeneratedCardContent {
-        guard let summary = summary.nonEmpty,
-              let planTitle = planTitle.nonEmpty
-        else {
-            throw ServiceError.invalidGeneratedCard
-        }
-        
-        let planSteps = mappedPlanSteps
-        let recommendedActions = mappedRecommendedActions
-        
-        guard !planSteps.isEmpty, !recommendedActions.isEmpty else {
-            throw ServiceError.invalidGeneratedCard
-        }
-        
-        return GeneratedCardContent(
-            summary: summary,
-            planTitle: planTitle,
-            planSteps: planSteps,
-            keyDetails: mappedKeyDetails,
-            recommendedActions: recommendedActions,
-            missingInfo: mappedMissingInfo,
-            sourceReasoning: mappedSourceReasoning,
-            personalNotePlaceholder: "Add your own note..."
-        )
-    }
-    
-    private var mappedPlanSteps: [GeneratedPlanStep] {
-        guard let planSteps else { return [] }
-        return planSteps.compactMap(\.generatedPlanStep)
-    }
-    
-    private var mappedRecommendedActions: [GeneratedAction] {
-        guard let recommendedActions else { return [] }
-        return recommendedActions.compactMap(\.generatedAction)
-    }
-    
-    private var mappedKeyDetails: [GeneratedField] {
-        guard let keyDetails else { return [] }
-        return keyDetails.compactMap(\.generatedField)
-    }
-    
-    private var mappedMissingInfo: [String] {
-        guard let missingInfo else { return [] }
-        return missingInfo.compactMap(\.nonEmpty)
-    }
-    
-    private var mappedSourceReasoning: [String] {
-        guard let sourceReasoning else { return [] }
-        return sourceReasoning.compactMap(\.nonEmpty)
-    }
-    
-}
-
-@available(iOS 26.0, *)
-private extension AppleFoundationGeneratedPlanStep.PartiallyGenerated {
-    var generatedPlanStep: GeneratedPlanStep? {
-        guard let title = title.nonEmpty ?? detail.nonEmpty else {
-            return nil
-        }
-        
-        return GeneratedPlanStep(
-            title: title,
-            detail: detail.nonEmpty(or: title),
-            actionType: actionType?.visionActionType ?? .custom
-        )
+    private var mappedSections: [InsightSection] {
+        sections
+            .compactMap(\.insightSection)
+            .sorted { $0.priority < $1.priority }
+            .prefix(5)
+            .map { $0 }
     }
 }
 
 @available(iOS 26.0, *)
-private extension AppleFoundationGeneratedAction.PartiallyGenerated {
-    var generatedAction: GeneratedAction? {
-        guard let title = title.nonEmpty else {
-            return nil
-        }
-        
-        return GeneratedAction(
-            title: title,
-            description: description.nonEmpty(or: title),
-            actionType: actionType?.visionActionType ?? .custom
-        )
-    }
-}
-
-@available(iOS 26.0, *)
-private extension AppleFoundationGeneratedField.PartiallyGenerated {
-    var generatedField: GeneratedField? {
-        guard let label = label.nonEmpty,
-              let value = value.nonEmpty
+private extension AppleFoundationInsightSection {
+    var insightSection: InsightSection? {
+        guard let title = title.nonEmpty,
+              let content = content.nonEmpty
         else {
             return nil
         }
         
-        return GeneratedField(
-            label: label,
-            value: value,
-            type: type?.visionEntityType ?? .unknown,
-            confidence: (confidence ?? 0.5).clamped(to: 0...1)
+        return InsightSection(
+            kind: kind.insightSectionKind,
+            title: title,
+            content: content,
+            priority: max(1, priority)
         )
     }
 }
 
 @available(iOS 26.0, *)
-private extension AppleFoundationGeneratedActionType {
-    var visionActionType: VisionActionType {
+private extension AppleFoundationInsightUsefulness {
+    var insightUsefulness: InsightUsefulness {
         switch self {
-        case .save:
-                .save
-        case .reminder:
-                .reminder
-        case .calendar:
-                .calendar
-        case .copy:
-                .copy
-        case .share:
-                .share
-        case .compare:
-                .compare
-        case .followUp:
-                .followUp
-        case .custom:
-                .custom
+        case .useful:
+            .useful
+        case .partiallyUseful:
+            .partiallyUseful
+        case .lowInformation:
+            .lowInformation
+        case .unclear:
+            .unclear
         }
     }
 }
 
 @available(iOS 26.0, *)
-private extension AppleFoundationGeneratedEntityType {
-    var visionEntityType: VisionEntityType {
+private extension AppleFoundationInsightSectionKind {
+    var insightSectionKind: InsightSectionKind {
         switch self {
-        case .product:
-                .product
-        case .price:
-                .price
-        case .promotion:
-                .promotion
-        case .store:
-                .store
-        case .date:
-                .date
-        case .time:
-                .time
-        case .location:
-                .location
-        case .company:
-                .company
-        case .role:
-                .role
-        case .skill:
-                .skill
-        case .url:
-                .url
-        case .contact:
-                .contact
+        case .summary:
+            .summary
+        case .keyDetails:
+            .keyDetails
+        case .suggestedActions:
+            .suggestedActions
+        case .checklist:
+            .checklist
+        case .draft:
+            .draft
+        case .missingInfo:
+            .missingInfo
+        case .warning:
+            .warning
+        case .tags:
+            .tags
         case .note:
-                .note
-        case .event:
-                .event
-        case .unknown:
-                .unknown
+            .note
         }
     }
 }

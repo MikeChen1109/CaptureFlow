@@ -6,14 +6,14 @@ struct NewCardFlowView: View {
     }
 
     let container: AppContainer
-    let onFinish: (ActionCard?) -> Void
+    let onFinish: (SavedInsightCard?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var path: [Route] = []
 
     init(
         container: AppContainer,
-        onFinish: @escaping (ActionCard?) -> Void
+        onFinish: @escaping (SavedInsightCard?) -> Void
     ) {
         self.container = container
         self.onFinish = onFinish
@@ -56,7 +56,7 @@ struct NewCardFlowView: View {
         .tint(CFColors.primaryOrange)
     }
 
-    private func finishFlow(savedCard: ActionCard? = nil) {
+    private func finishFlow(savedCard: SavedInsightCard? = nil) {
         onFinish(savedCard)
         dismiss()
     }
