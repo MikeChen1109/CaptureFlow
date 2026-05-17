@@ -27,7 +27,7 @@ struct CardDetailView: View {
             }
             .padding(CFSpacing.large)
         }
-        .background(CFColors.background.ignoresSafeArea())
+        .captureFlowParticleBackground()
         .navigationTitle("Insight Detail")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
@@ -317,13 +317,12 @@ private struct SourceImagePreviewView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                CFColors.background.ignoresSafeArea()
-
                 Image(uiImage: preview.image)
                     .resizable()
                     .scaledToFit()
                     .padding(CFSpacing.large)
             }
+            .captureFlowParticleBackground(count: 220)
             .navigationTitle(preview.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

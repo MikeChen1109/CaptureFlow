@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     @StateObject private var viewModel: HomeViewModel
+    @Environment(\.showDynamicIslandToast) private var showDynamicIslandToast
     private let onCreateCard: () -> Void
     private let onSelectCard: (SavedInsightCard) -> Void
     private let onOpenSettings: () -> Void
@@ -34,23 +35,22 @@ struct HomeView: View {
                 .padding(.bottom, CFSpacing.xLarge)
             }
         }
-        .background(CFColors.background.ignoresSafeArea())
+        .captureFlowParticleBackground()
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await viewModel.loadIfNeeded()
-        }
-        .overlay(alignment: .top) {
-            if let actionMessage = viewModel.actionMessage {
-                ActionToast(message: actionMessage)
-                    .padding(.horizontal, CFSpacing.large)
-                    .padding(.top, CFSpacing.large)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
         }
         .onChange(of: viewModel.actionMessage) { _, newValue in
             guard let newValue else {
                 return
             }
+
+            showDynamicIslandToast(
+                .success(
+                    title: "Done",
+                    message: newValue
+                )
+            )
 
             Task {
                 try? await Task.sleep(for: .seconds(1.8))
@@ -65,7 +65,6 @@ struct HomeView: View {
                 }
             }
         }
-        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.actionMessage)
         .tint(CFColors.primaryOrange)
     }
 
@@ -87,7 +86,7 @@ struct HomeView: View {
         .padding(.horizontal, CFSpacing.large)
         .padding(.top, CFSpacing.medium)
         .padding(.bottom, CFSpacing.large)
-        .background(CFColors.background)
+        .background(CFColors.background.opacity(0.86))
     }
 
     private var intro: some View {
@@ -196,30 +195,5 @@ struct HomeView: View {
                 }
             }
         }
-    }
-}
-
-private struct ActionToast: View {
-    let message: String
-
-    var body: some View {
-        HStack(spacing: CFSpacing.small) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(CFColors.success)
-
-            Text(message)
-                .font(CFTypography.callout.weight(.semibold))
-                .foregroundStyle(CFColors.textPrimary)
-
-            Spacer(minLength: 0)
-        }
-        .padding(CFSpacing.medium)
-        .background(CFColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous)
-                .stroke(CFColors.success.opacity(0.35), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 10)
     }
 }

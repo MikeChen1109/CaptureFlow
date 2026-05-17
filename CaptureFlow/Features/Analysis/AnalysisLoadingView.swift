@@ -53,7 +53,7 @@ struct AnalysisLoadingView: View {
         }
         .padding(CFSpacing.large)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(CFColors.background.ignoresSafeArea())
+        .captureFlowParticleBackground()
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

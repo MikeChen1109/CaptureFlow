@@ -17,7 +17,7 @@ struct SettingsView: View {
             }
             .padding(CFSpacing.large)
         }
-        .background(CFColors.background.ignoresSafeArea())
+        .captureFlowParticleBackground()
         .navigationTitle("Prototype Info")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)

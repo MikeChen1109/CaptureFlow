@@ -3,6 +3,17 @@ import SwiftUI
 struct CFLoadingStepsView: View {
     let steps: [String]
     let currentStepIndex: Int
+    var showsActiveSpinner: Bool
+
+    init(
+        steps: [String],
+        currentStepIndex: Int,
+        showsActiveSpinner: Bool = true
+    ) {
+        self.steps = steps
+        self.currentStepIndex = currentStepIndex
+        self.showsActiveSpinner = showsActiveSpinner
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: CFSpacing.medium) {
@@ -30,9 +41,20 @@ struct CFLoadingStepsView: View {
                 .background(CFColors.orangeHighlight)
                 .clipShape(Circle())
         } else if index == currentStepIndex {
-            ProgressView()
-                .tint(CFColors.primaryOrange)
-                .frame(width: 22, height: 22)
+            if showsActiveSpinner {
+                ProgressView()
+                    .tint(CFColors.primaryOrange)
+                    .frame(width: 22, height: 22)
+            } else {
+                Circle()
+                    .fill(CFColors.primaryOrange.opacity(0.22))
+                    .frame(width: 22, height: 22)
+                    .overlay {
+                        Circle()
+                            .fill(CFColors.orangeHighlight)
+                            .frame(width: 8, height: 8)
+                    }
+            }
         } else {
             Circle()
                 .stroke(CFColors.border, lineWidth: 1)

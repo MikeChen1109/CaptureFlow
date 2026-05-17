@@ -48,7 +48,7 @@ struct AddCustomFieldSheet: View {
                 }
                 .padding(CFSpacing.large)
             }
-            .background(CFColors.background.ignoresSafeArea())
+            .captureFlowParticleBackground()
             .safeAreaInset(edge: .bottom) {
                 VStack(alignment: .leading, spacing: CFSpacing.small) {
                     if let validationMessage {
@@ -72,7 +72,7 @@ struct AddCustomFieldSheet: View {
                 .padding(.horizontal, CFSpacing.large)
                 .padding(.top, CFSpacing.small)
                 .padding(.bottom, CFSpacing.medium)
-                .background(CFColors.background)
+                .background(CFColors.background.opacity(0.94))
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

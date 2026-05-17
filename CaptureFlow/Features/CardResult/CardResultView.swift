@@ -64,7 +64,7 @@ struct CardResultView: View {
             }
             .padding(CFSpacing.large)
         }
-        .background(CFColors.background.ignoresSafeArea())
+        .captureFlowParticleBackground()
         .navigationTitle("Insight")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(onFinish != nil)

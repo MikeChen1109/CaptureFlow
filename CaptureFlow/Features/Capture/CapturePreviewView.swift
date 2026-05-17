@@ -31,7 +31,7 @@ struct CapturePreviewView: View {
                 .padding(.bottom, 96)
             }
         }
-        .background(CFColors.background.ignoresSafeArea())
+        .captureFlowParticleBackground()
         .safeAreaInset(edge: .bottom, spacing: 0) {
             analyzeFooter
         }
@@ -79,7 +79,7 @@ struct CapturePreviewView: View {
         .padding(.horizontal, CFSpacing.large)
         .padding(.top, CFSpacing.medium)
         .padding(.bottom, CFSpacing.large)
-        .background(CFColors.background)
+        .background(CFColors.background.opacity(0.86))
     }
 
     private var imagePreview: some View {
@@ -172,11 +172,6 @@ struct CapturePreviewView: View {
             Rectangle()
                 .fill(CFColors.background.opacity(0.94))
                 .ignoresSafeArea()
-        }
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(CFColors.border.opacity(0.7))
-                .frame(height: 1)
         }
     }
 

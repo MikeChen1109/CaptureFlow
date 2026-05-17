@@ -16,7 +16,7 @@ struct CardResultGenerationView: View {
         static let allTitles = [
             "Reading image",
             "Understanding context",
-            "Generating insight card"
+            "Building insight card"
         ]
     }
 
@@ -216,17 +216,6 @@ private struct UnifiedGenerationLoadingView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    CFColors.background,
-                    CFColors.background,
-                    CFColors.secondarySurface
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
             VStack(spacing: CFSpacing.xLarge) {
                 Spacer()
 
@@ -253,18 +242,19 @@ private struct UnifiedGenerationLoadingView: View {
                 CFCardContainer {
                     VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
                         VStack(alignment: .leading, spacing: CFSpacing.small) {
-                            Text("Analyzing & Building Insight")
+                            Text("Analyzing Image")
                                 .font(CFTypography.title)
                                 .foregroundStyle(CFColors.textPrimary)
 
-                            Text("Prototype mode: local analysis and generation.")
+                            Text("Extracting context and building your insight card.")
                                 .font(CFTypography.callout)
                                 .foregroundStyle(CFColors.textSecondary)
                         }
 
                         CFLoadingStepsView(
                             steps: steps,
-                            currentStepIndex: max(0, min(currentStepIndex, steps.count - 1))
+                            currentStepIndex: max(0, min(currentStepIndex, steps.count - 1)),
+                            showsActiveSpinner: false
                         )
 
                         if let errorMessage {
@@ -272,11 +262,23 @@ private struct UnifiedGenerationLoadingView: View {
                         }
                     }
                 }
+                .borderBeam(
+                    border: CFColors.primaryOrange.opacity(0.72),
+                    beam: [
+                        CFColors.primaryOrange.opacity(0.12),
+                        CFColors.orangeHighlight,
+                        CFColors.primaryOrange
+                    ],
+                    beamBlur: 10,
+                    cornerRadius: CFCornerRadius.large,
+                    isEnabled: errorMessage == nil
+                )
                 .padding(.horizontal, CFSpacing.large)
 
                 Spacer()
             }
         }
+        .captureFlowParticleBackground(count: 280, opacityRange: 0.04...0.36)
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
