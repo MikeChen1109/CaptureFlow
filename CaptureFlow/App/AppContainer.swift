@@ -33,7 +33,7 @@ struct AppContainer: Sendable {
             creditProvider: MockCreditProvider(),
             reminderCreator: EventKitReminderCreator(store: eventKitStore),
             calendarCreator: EventKitCalendarCreator(store: eventKitStore),
-            cardRepository: InMemoryCardRepository()
+            cardRepository: InMemoryCardRepository(seedCards: MockHomeSeedCards.cards())
         )
     }
 

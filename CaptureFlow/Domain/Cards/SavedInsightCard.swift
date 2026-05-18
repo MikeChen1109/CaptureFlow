@@ -44,7 +44,9 @@ struct SavedInsightCard: Codable, Hashable, Identifiable, Sendable {
                 status: adapterMetadata?.status ?? .pending
             ),
             insight: insight,
-            actionCard: actionCard
+            actionCard: actionCard,
+            reminderExternalID: actionCard?.reminderExternalID,
+            calendarExternalID: actionCard?.calendarExternalID
         )
     }
 
@@ -53,7 +55,7 @@ struct SavedInsightCard: Codable, Hashable, Identifiable, Sendable {
     }
 
     nonisolated var reminderRequest: ReminderCreationRequest? {
-        guard reminderExternalID == nil else {
+        guard effectiveReminderExternalID == nil else {
             return nil
         }
 
@@ -61,7 +63,7 @@ struct SavedInsightCard: Codable, Hashable, Identifiable, Sendable {
     }
 
     nonisolated var calendarRequest: CalendarCreationRequest? {
-        guard calendarExternalID == nil,
+        guard effectiveCalendarExternalID == nil,
               case .calendar(let calendar) = actionCard
         else {
             return nil
@@ -71,11 +73,19 @@ struct SavedInsightCard: Codable, Hashable, Identifiable, Sendable {
     }
 
     nonisolated var supportsReminderAction: Bool {
-        reminderRequest != nil || reminderExternalID != nil
+        reminderRequest != nil || effectiveReminderExternalID != nil
     }
 
     nonisolated var supportsCalendarAction: Bool {
-        calendarRequest != nil || calendarExternalID != nil
+        calendarRequest != nil || effectiveCalendarExternalID != nil
+    }
+
+    nonisolated var effectiveReminderExternalID: String? {
+        reminderExternalID ?? actionCard?.reminderExternalID
+    }
+
+    nonisolated var effectiveCalendarExternalID: String? {
+        calendarExternalID ?? actionCard?.calendarExternalID
     }
 
     nonisolated func updatingMetadata(_ transform: (inout CardMetadata) -> Void) -> SavedInsightCard {

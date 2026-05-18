@@ -2,83 +2,40 @@ import SwiftUI
 
 struct CardRowView: View {
     let card: SavedInsightCard
-    let isCreatingReminder: Bool
-    let isCreatingCalendar: Bool
     let onSelect: () -> Void
-    let onCreateReminder: () -> Void
-    let onCreateCalendar: () -> Void
 
     var body: some View {
         cardContainer {
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                Button(action: onSelect) {
-                    HStack(alignment: .top, spacing: CFSpacing.medium) {
-                        icon
+            Button(action: onSelect) {
+                HStack(alignment: .top, spacing: CFSpacing.medium) {
+                    icon
 
-                        VStack(alignment: .leading, spacing: CFSpacing.small) {
-                            Text(card.title)
-                                .font(CFTypography.headline)
-                                .foregroundStyle(CFColors.textPrimary)
+                    VStack(alignment: .leading, spacing: CFSpacing.small) {
+                        Text(card.title)
+                            .font(CFTypography.headline)
+                            .foregroundStyle(CFColors.textPrimary)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if let summary {
+                            Text(summary)
+                                .font(CFTypography.callout)
+                                .foregroundStyle(CFColors.textSecondary)
                                 .lineLimit(2)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            if let summary {
-                                Text(summary)
-                                    .font(CFTypography.callout)
-                                    .foregroundStyle(CFColors.textSecondary)
-                                    .lineLimit(2)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-
-                            metadataRow
+                                .fixedSize(horizontal: false, vertical: true)
                         }
 
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(CFColors.placeholderText)
-                            .padding(.top, 3)
+                        metadataRow
                     }
-                    .contentShape(Rectangle())
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(CFColors.placeholderText)
+                        .padding(.top, 3)
                 }
-                .buttonStyle(.plain)
-
-                if card.supportsReminderAction || card.supportsCalendarAction {
-                    Divider()
-                        .overlay(CFColors.border.opacity(0.7))
-
-                    HStack(spacing: CFSpacing.small) {
-                        if card.supportsReminderAction {
-                            if card.reminderExternalID == nil {
-                                actionButton(
-                                    title: "Add Reminder",
-                                    systemImage: "bell.badge.fill",
-                                    isLoading: isCreatingReminder
-                                ) {
-                                    onCreateReminder()
-                                }
-                            } else {
-                                actionStatus(title: "Reminder saved", systemImage: "checkmark.circle.fill")
-                            }
-                        }
-
-                        if card.supportsCalendarAction {
-                            if card.calendarExternalID == nil {
-                                actionButton(
-                                    title: "Add Calendar",
-                                    systemImage: "calendar.badge.plus",
-                                    isLoading: isCreatingCalendar
-                                ) {
-                                    onCreateCalendar()
-                                }
-                            } else {
-                                actionStatus(title: "Calendar saved", systemImage: "checkmark.circle.fill")
-                            }
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
         }
     }
 
@@ -143,59 +100,6 @@ struct CardRowView: View {
         }
         .font(CFTypography.caption)
         .foregroundStyle(CFColors.placeholderText)
-    }
-
-    private func actionButton(
-        title: String,
-        systemImage: String,
-        isLoading: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: CFSpacing.xSmall) {
-                if isLoading {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(CFColors.textPrimary)
-                } else {
-                    Image(systemName: systemImage)
-                        .imageScale(.small)
-                }
-
-                Text(title)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-            }
-            .font(CFTypography.caption.weight(.semibold))
-            .foregroundStyle(CFColors.textPrimary)
-            .padding(.horizontal, CFSpacing.medium)
-            .frame(height: 32)
-            .background(iconTint.opacity(0.16))
-            .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous)
-                    .stroke(iconTint.opacity(0.36), lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(isLoading)
-    }
-
-    private func actionStatus(title: String, systemImage: String) -> some View {
-        HStack(spacing: CFSpacing.xSmall) {
-            Image(systemName: systemImage)
-                .imageScale(.small)
-
-            Text(title)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-        }
-        .font(CFTypography.caption.weight(.semibold))
-        .foregroundStyle(CFColors.textSecondary)
-        .padding(.horizontal, CFSpacing.medium)
-        .frame(height: 32)
-        .background(CFColors.secondarySurface.opacity(0.64))
-        .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
     }
 
     private var summary: String? {

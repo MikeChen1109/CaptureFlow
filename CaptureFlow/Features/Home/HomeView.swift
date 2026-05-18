@@ -175,20 +175,8 @@ struct HomeView: View {
                     ForEach(viewModel.cards) { card in
                         CardRowView(
                             card: card,
-                            isCreatingReminder: viewModel.creatingReminderCardID == card.id,
-                            isCreatingCalendar: viewModel.creatingCalendarCardID == card.id,
                             onSelect: {
                                 onSelectCard(card)
-                            },
-                            onCreateReminder: {
-                                Task {
-                                    await viewModel.createReminder(for: card.id)
-                                }
-                            },
-                            onCreateCalendar: {
-                                Task {
-                                    await viewModel.createCalendarEvent(for: card.id)
-                                }
                             }
                         )
                     }

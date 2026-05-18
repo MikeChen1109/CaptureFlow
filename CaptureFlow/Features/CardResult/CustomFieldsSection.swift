@@ -1,16 +1,20 @@
 import SwiftUI
 
 struct CustomFieldsSection: View {
-    @ObservedObject var viewModel: CardResultViewModel
+    let customFields: [CardResultCustomField]
+    let onAddCustomField: (CardResultCustomFieldType, String) -> Void
+    let onRemoveCustomField: (UUID) -> RemovedCardResultCustomField?
+    let onRestoreCustomField: (RemovedCardResultCustomField) -> Void
+
     @State private var isPresentingAddCustomFieldSheet = false
     @State private var recentlyRemovedField: RemovedCardResultCustomField?
     @State private var undoDismissTask: Task<Void, Never>?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CFSpacing.small) {
-            ForEach(viewModel.customFields) { field in
+        VStack(alignment: .leading, spacing: CFSpacing.medium) {
+            ForEach(customFields) { field in
                 CustomFieldRow(field: field) {
-                    guard let removed = viewModel.removeCustomField(id: field.id) else {
+                    guard let removed = onRemoveCustomField(field.id) else {
                         return
                     }
                     recentlyRemovedField = removed
@@ -24,22 +28,21 @@ struct CustomFieldsSection: View {
             ) {
                 isPresentingAddCustomFieldSheet = true
             }
-            .padding(.top, viewModel.customFields.isEmpty ? 0 : CFSpacing.large - CFSpacing.small)
 
             if let recentlyRemovedField {
                 DeletedCustomFieldUndoRow(recentlyRemovedField: recentlyRemovedField) {
-                    viewModel.restoreCustomField(recentlyRemovedField)
+                    onRestoreCustomField(recentlyRemovedField)
                     self.recentlyRemovedField = nil
                     undoDismissTask?.cancel()
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.86), value: viewModel.customFields)
+        .animation(.spring(response: 0.35, dampingFraction: 0.86), value: customFields)
         .animation(.easeInOut(duration: 0.2), value: recentlyRemovedField?.field.id)
         .sheet(isPresented: $isPresentingAddCustomFieldSheet) {
             AddCustomFieldSheet { fieldType, value in
-                viewModel.addCustomField(type: fieldType, value: value)
+                onAddCustomField(fieldType, value)
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)

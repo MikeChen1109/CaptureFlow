@@ -4,9 +4,12 @@ import UIKit
 struct CardDetailView: View {
     @StateObject private var viewModel: CardDetailViewModel
     @State private var previewSourceImage: SourceImagePreview?
+    @State private var isPresentingDeleteConfirmation = false
     let onCardUpdated: (SavedInsightCard) -> Void
     let onCardDeleted: () -> Void
     let onClose: () -> Void
+
+    private let sectionSpacing = CFSpacing.large
 
     init(
         viewModel: CardDetailViewModel,
@@ -22,7 +25,7 @@ struct CardDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
+            VStack(alignment: .leading, spacing: sectionSpacing) {
                 content
             }
             .padding(CFSpacing.large)
@@ -31,11 +34,33 @@ struct CardDetailView: View {
         .navigationTitle("Insight Detail")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if viewModel.card != nil {
+                    overflowMenu
+                }
+            }
+        }
         .task {
             await viewModel.load()
         }
         .sheet(item: $previewSourceImage) { preview in
             SourceImagePreviewView(preview: preview)
+        }
+        .confirmationDialog(
+            "Delete this insight?",
+            isPresented: $isPresentingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Insight", role: .destructive) {
+                Task {
+                    await deleteCard()
+                }
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the card from your inbox.")
         }
     }
 
@@ -56,6 +81,18 @@ struct CardDetailView: View {
             header(card)
             sourceSection(card)
             insightSections(card)
+            CustomFieldsSection(
+                customFields: viewModel.customFields,
+                onAddCustomField: { fieldType, value in
+                    viewModel.addCustomField(type: fieldType, value: value)
+                },
+                onRemoveCustomField: { fieldID in
+                    viewModel.removeCustomField(id: fieldID)
+                },
+                onRestoreCustomField: { removedField in
+                    viewModel.restoreCustomField(removedField)
+                }
+            )
             actions
         } else {
             CFEmptyStateView(
@@ -146,7 +183,7 @@ struct CardDetailView: View {
     }
 
     private func insightSections(_ card: SavedInsightCard) -> some View {
-        VStack(alignment: .leading, spacing: CFSpacing.large) {
+        VStack(alignment: .leading, spacing: sectionSpacing) {
             ForEach(card.insight.sections.sorted { $0.priority < $1.priority }) { section in
                 InsightSectionView(section: section)
             }
@@ -154,7 +191,7 @@ struct CardDetailView: View {
     }
 
     private var actions: some View {
-        VStack(spacing: CFSpacing.medium) {
+        VStack(spacing: sectionSpacing) {
             if viewModel.showsExternalActions {
                 HStack(spacing: CFSpacing.medium) {
                     if viewModel.showsReminderAction {
@@ -193,56 +230,66 @@ struct CardDetailView: View {
                 }
             }
 
-            CFSecondaryButton(
-                viewModel.didCopyMarkdown ? "Markdown Copied" : "Copy Markdown",
-                systemImage: viewModel.didCopyMarkdown ? "checkmark" : "doc.on.doc.fill",
-                tone: viewModel.didCopyMarkdown ? .success : .normal
-            ) {
-                viewModel.copyMarkdown()
-            }
-
-            HStack(spacing: CFSpacing.medium) {
-                CFSecondaryButton(
-                    viewModel.isArchiving ? "Archiving..." : "Archive",
-                    systemImage: "archivebox.fill",
-                    isDisabled: viewModel.isArchiving || viewModel.isDeleting
-                ) {
-                    Task {
-                        if let updatedCard = await viewModel.archive() {
-                            onCardUpdated(updatedCard)
-                            onClose()
-                        }
-                    }
-                }
-
-                CFSecondaryButton(
-                    viewModel.isDeleting ? "Deleting..." : "Delete",
-                    systemImage: "trash.fill",
-                    tone: .destructive,
-                    isDisabled: viewModel.isArchiving || viewModel.isDeleting
-                ) {
-                    Task {
-                        if await viewModel.delete() {
-                            onCardDeleted()
-                            onClose()
-                        }
-                    }
-                }
-            }
-
-            if let actionMessage = viewModel.actionMessage {
-                Text(actionMessage)
-                    .font(CFTypography.callout)
-                    .foregroundStyle(CFColors.success)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
             if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
                     .font(CFTypography.callout)
                     .foregroundStyle(CFColors.destructive)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+    }
+
+    private var overflowMenu: some View {
+        Menu {
+            Button {
+                viewModel.copyMarkdown()
+            } label: {
+                Label(
+                    viewModel.didCopyMarkdown ? "Markdown Copied" : "Copy Markdown",
+                    systemImage: viewModel.didCopyMarkdown ? "checkmark" : "doc.on.doc.fill"
+                )
+            }
+
+            Button {
+                Task {
+                    await archiveCard()
+                }
+            } label: {
+                Label(
+                    viewModel.isArchiving ? "Archiving..." : "Archive",
+                    systemImage: "archivebox.fill"
+                )
+            }
+            .disabled(viewModel.isArchiving || viewModel.isDeleting)
+
+            Button(role: .destructive) {
+                isPresentingDeleteConfirmation = true
+            } label: {
+                Label(
+                    viewModel.isDeleting ? "Deleting..." : "Delete",
+                    systemImage: "trash.fill"
+                )
+            }
+            .disabled(viewModel.isArchiving || viewModel.isDeleting)
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(CFColors.textPrimary)
+        }
+        .accessibilityLabel("More actions")
+    }
+
+    private func archiveCard() async {
+        if let updatedCard = await viewModel.archive() {
+            onCardUpdated(updatedCard)
+            onClose()
+        }
+    }
+
+    private func deleteCard() async {
+        if await viewModel.delete() {
+            onCardDeleted()
+            onClose()
         }
     }
 

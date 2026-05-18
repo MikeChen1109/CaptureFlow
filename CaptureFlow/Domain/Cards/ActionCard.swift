@@ -63,6 +63,27 @@ enum ActionCard: Codable, Hashable, Identifiable, Sendable {
     nonisolated var confidenceScore: Double { metadata.confidenceScore }
     nonisolated var status: CardStatus { metadata.status }
 
+    nonisolated var reminderExternalID: String? {
+        switch self {
+        case .reminder(let card):
+            card.reminderExternalID
+        case .shopping(let card):
+            card.reminderExternalID
+        case .job(let card):
+            card.reminderExternalID
+        case .calendar, .note:
+            nil
+        }
+    }
+
+    nonisolated var calendarExternalID: String? {
+        guard case .calendar(let card) = self else {
+            return nil
+        }
+
+        return card.calendarExternalID
+    }
+
     nonisolated func updatingMetadata(_ transform: (inout CardMetadata) -> Void) -> ActionCard {
         switch self {
         case .reminder(var card):

@@ -12,9 +12,7 @@ actor EventKitActionStore {
 
         try await ensureReminderAccess()
 
-        guard let calendar = eventStore.defaultCalendarForNewReminders() else {
-            throw ServiceError.unavailable("No default reminder list is available.")
-        }
+        let calendar = try reminderCalendar()
 
         let reminder = EKReminder(eventStore: eventStore)
         reminder.calendar = calendar
@@ -103,6 +101,49 @@ actor EventKitActionStore {
         @unknown default:
             throw ServiceError.permissionDenied
         }
+    }
+
+    private func reminderCalendar() throws -> EKCalendar {
+        if let calendar = eventStore.defaultCalendarForNewReminders(),
+           calendar.allowsContentModifications {
+            return calendar
+        }
+
+        if let calendar = eventStore
+            .calendars(for: .reminder)
+            .first(where: \.allowsContentModifications) {
+            return calendar
+        }
+
+        guard let source = reminderSource() else {
+            throw ServiceError.unavailable("No writable reminder source is available.")
+        }
+
+        let calendar = EKCalendar(for: .reminder, eventStore: eventStore)
+        calendar.title = "CaptureFlow"
+        calendar.source = source
+        try eventStore.saveCalendar(calendar, commit: true)
+        return calendar
+    }
+
+    private func reminderSource() -> EKSource? {
+        let preferredTypes: [EKSourceType] = [.calDAV, .mobileMe, .local, .exchange]
+
+        for sourceType in preferredTypes {
+            if let source = eventStore.sources.first(where: { source in
+                source.sourceType == sourceType && !source.calendars(for: .reminder).isEmpty
+            }) {
+                return source
+            }
+        }
+
+        for sourceType in preferredTypes {
+            if let source = eventStore.sources.first(where: { $0.sourceType == sourceType }) {
+                return source
+            }
+        }
+
+        return eventStore.sources.first
     }
 
     private func requestFullAccessToReminders() async throws -> Bool {

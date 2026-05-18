@@ -37,10 +37,6 @@ struct CardResultView: View {
                 }
 
                 if viewModel.isGenerationCompleted && isResultFullyRevealed {
-                    CustomFieldsSection(viewModel: viewModel)
-                        .padding(.top, -CFSpacing.small)
-                        .transition(.cfSectionReveal)
-
                     CardResultActionsCard(
                         viewModel: viewModel,
                         isFinishing: isFinishing,

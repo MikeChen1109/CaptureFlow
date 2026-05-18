@@ -18,32 +18,10 @@ private struct CaptureFlowParticleBackground: ViewModifier {
     let count: Int
     let opacityRange: ClosedRange<Double>
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     func body(content: Content) -> some View {
         content
             .background {
-                ZStack {
-                    CFColors.background.ignoresSafeArea()
-
-                    ParticleBackground(
-                        count: count,
-                        config: .init(
-                            sizeRange: 1.4...4.2,
-                            sharpBlurRange: 0...0.6,
-                            softBlurRange: 1.6...4.8,
-                            speedRange: 0.55...1.05,
-                            opacityRange: opacityRange,
-                            driftXRange: 0.015...0.07,
-                            driftYRange: 0.035...0.14,
-                            fps: 30,
-                            color: CFColors.destructive
-                        ),
-                        isAnimated: !reduceMotion
-                    )
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                }
+                CFColors.background.ignoresSafeArea()
             }
     }
 }

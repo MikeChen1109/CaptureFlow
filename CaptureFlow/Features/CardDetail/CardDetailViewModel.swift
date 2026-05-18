@@ -11,9 +11,11 @@ final class CardDetailViewModel: ObservableObject {
     @Published private(set) var isCreatingReminder = false
     @Published private(set) var isCreatingCalendar = false
     @Published private(set) var didCopyMarkdown = false
+    @Published private(set) var customFields: [CardResultCustomField] = []
     @Published var errorMessage: String?
     @Published var actionMessage: String?
 
+    private let customFieldValueResolver = CardResultCustomFieldValueResolver()
     private let cardID: UUID
     private let cardRepository: any CardRepository
     private let reminderCreator: any ReminderCreating
@@ -36,7 +38,7 @@ final class CardDetailViewModel: ObservableObject {
     }
 
     var showsReminderAction: Bool {
-        card?.supportsReminderAction == true || isCreatingReminder
+        card != nil || isCreatingReminder
     }
 
     var showsCalendarAction: Bool {
@@ -44,7 +46,7 @@ final class CardDetailViewModel: ObservableObject {
     }
 
     var canCreateReminder: Bool {
-        card?.reminderRequest != nil && !isCreatingReminder
+        reminderRequest != nil && !isCreatingReminder
     }
 
     var canCreateCalendar: Bool {
@@ -52,11 +54,11 @@ final class CardDetailViewModel: ObservableObject {
     }
 
     var didCreateReminder: Bool {
-        card?.reminderExternalID != nil
+        card?.effectiveReminderExternalID != nil
     }
 
     var didCreateCalendar: Bool {
-        card?.calendarExternalID != nil
+        card?.effectiveCalendarExternalID != nil
     }
 
     func load() async {
@@ -83,10 +85,41 @@ final class CardDetailViewModel: ObservableObject {
         errorMessage = nil
     }
 
+    func addCustomField(type: CardResultCustomFieldType, value: String) {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else {
+            return
+        }
+
+        customFields.append(
+            CardResultCustomField(
+                type: type,
+                value: trimmedValue
+            )
+        )
+        actionMessage = nil
+        errorMessage = nil
+    }
+
+    @discardableResult
+    func removeCustomField(id: UUID) -> RemovedCardResultCustomField? {
+        guard let index = customFields.firstIndex(where: { $0.id == id }) else {
+            return nil
+        }
+
+        let field = customFields.remove(at: index)
+        return RemovedCardResultCustomField(field: field, originalIndex: index)
+    }
+
+    func restoreCustomField(_ removed: RemovedCardResultCustomField) {
+        let index = min(max(removed.originalIndex, 0), customFields.count)
+        customFields.insert(removed.field, at: index)
+    }
+
     func createReminder() async -> SavedInsightCard? {
         guard !isCreatingReminder,
               let card,
-              let request = card.reminderRequest
+              let request = reminderRequest
         else {
             errorMessage = "This insight does not have enough information for a reminder."
             return nil
@@ -156,6 +189,107 @@ final class CardDetailViewModel: ObservableObject {
         }
     }
 
+    private var reminderRequest: ReminderCreationRequest? {
+        guard let card,
+              card.effectiveReminderExternalID == nil
+        else {
+            return nil
+        }
+
+        let baseRequest = card.reminderRequest ?? fallbackReminderRequest(for: card)
+        return baseRequest.map(applyingCustomFields(to:))
+    }
+
+    private func fallbackReminderRequest(for card: SavedInsightCard) -> ReminderCreationRequest? {
+        let title = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else {
+            return nil
+        }
+
+        return ReminderCreationRequest(
+            sourceCardID: card.id,
+            title: title,
+            notes: card.insight.summary?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? card.insight.sections
+                    .sorted { $0.priority < $1.priority }
+                    .map(\.content)
+                    .joined(separator: "\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+            dueDate: customReminderDate,
+            location: customFieldValue(for: .location),
+            priority: .medium
+        )
+    }
+
+    private func applyingCustomFields(to request: ReminderCreationRequest) -> ReminderCreationRequest {
+        var updatedRequest = request
+
+        if let customReminderDate {
+            updatedRequest.dueDate = customReminderDate
+        }
+
+        if let location = customFieldValue(for: .location) {
+            updatedRequest.location = location
+        }
+
+        updatedRequest.notes = notesWithCustomFields(baseNotes: request.notes)
+        return updatedRequest
+    }
+
+    private var customReminderDate: Date? {
+        guard let customDate = customDate else {
+            return nil
+        }
+
+        return customDate.combiningTime(from: customTime)
+    }
+
+    private var customDate: Date? {
+        customFields
+            .filter { $0.type == .date }
+            .compactMap { customFieldValueResolver.date(from: $0.value) }
+            .first
+    }
+
+    private var customTime: Date? {
+        customFields
+            .filter { $0.type == .time }
+            .compactMap { customFieldValueResolver.time(from: $0.value) }
+            .first
+    }
+
+    private func customFieldValue(for type: CardResultCustomFieldType) -> String? {
+        customFields
+            .first { $0.type == type }?
+            .value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+    }
+
+    private func notesWithCustomFields(baseNotes: String) -> String {
+        var noteLines = baseNotes
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+            .map { [$0] } ?? []
+
+        let detailFields = customFields.filter { field in
+            switch field.type {
+            case .date, .time, .location:
+                false
+            case .note, .link, .contact, .custom:
+                true
+            }
+        }
+
+        noteLines.append(
+            contentsOf: detailFields.map { field in
+                "\(field.type.displayName): \(field.value)"
+            }
+        )
+
+        return noteLines.joined(separator: "\n")
+    }
+
     func delete() async -> Bool {
         isDeleting = true
         errorMessage = nil
@@ -172,5 +306,28 @@ final class CardDetailViewModel: ObservableObject {
             isDeleting = false
             return false
         }
+    }
+}
+
+private extension Date {
+    func combiningTime(from time: Date?) -> Date {
+        var calendar = Calendar.autoupdatingCurrent
+        calendar.timeZone = .autoupdatingCurrent
+
+        var dateComponents = calendar.dateComponents([.year, .month, .day], from: self)
+        let timeComponents = time.map {
+            calendar.dateComponents([.hour, .minute], from: $0)
+        }
+
+        dateComponents.hour = timeComponents?.hour ?? 9
+        dateComponents.minute = timeComponents?.minute ?? 0
+
+        return calendar.date(from: dateComponents) ?? self
+    }
+}
+
+private extension String {
+    var nonEmpty: String? {
+        isEmpty ? nil : self
     }
 }
