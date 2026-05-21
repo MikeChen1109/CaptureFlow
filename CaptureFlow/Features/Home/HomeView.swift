@@ -78,10 +78,7 @@ struct HomeView: View {
 
             Spacer(minLength: CFSpacing.medium)
 
-            HStack(spacing: CFSpacing.small) {
-                creditsBadge
-                settingsButton
-            }
+            settingsButton
         }
         .padding(.horizontal, CFSpacing.large)
         .padding(.top, CFSpacing.medium)
@@ -123,34 +120,6 @@ struct HomeView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Settings")
-    }
-
-    private var creditsBadge: some View {
-        HStack(spacing: CFSpacing.xSmall) {
-            Image(systemName: "bolt.fill")
-                .imageScale(.small)
-
-            Text(creditsText)
-                .lineLimit(1)
-        }
-        .font(CFTypography.caption)
-        .foregroundStyle(CFColors.orangeHighlight)
-        .padding(.horizontal, CFSpacing.medium)
-        .frame(height: 32)
-        .background(CFColors.primaryOrange.opacity(0.14))
-        .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous)
-                .stroke(CFColors.primaryOrange.opacity(0.32), lineWidth: 1)
-        }
-    }
-
-    private var creditsText: String {
-        guard let creditBalance = viewModel.creditBalance else {
-            return "-- credits"
-        }
-
-        return "\(creditBalance.remaining) credits"
     }
 
     private var actionButtons: some View {

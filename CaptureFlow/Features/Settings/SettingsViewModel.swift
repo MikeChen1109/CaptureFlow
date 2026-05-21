@@ -3,49 +3,55 @@ import Foundation
 
 @MainActor
 final class SettingsViewModel: ObservableObject {
-    @Published private(set) var creditBalance: CreditBalance?
-    @Published private(set) var isLoading = false
+    @Published var outputDetail: InsightOutputDetail {
+        didSet { userDefaults.set(outputDetail.rawValue, forKey: GenerationPreferences.Keys.outputDetail) }
+    }
+
+    @Published var outputTone: InsightOutputTone {
+        didSet { userDefaults.set(outputTone.rawValue, forKey: GenerationPreferences.Keys.outputTone) }
+    }
+
+    @Published var enablesMotionEffects: Bool {
+        didSet { userDefaults.set(enablesMotionEffects, forKey: GenerationPreferences.Keys.enablesMotionEffects) }
+    }
+
     @Published private(set) var isResetting = false
     @Published var errorMessage: String?
-    @Published var actionMessage: String?
+    @Published private(set) var actionMessage: String?
 
     private let cardRepository: any CardRepository
-    private let creditProvider: any CreditProviding
+    private let userDefaults: UserDefaults
 
     init(
         cardRepository: any CardRepository,
-        creditProvider: any CreditProviding
+        userDefaults: UserDefaults = .standard
     ) {
         self.cardRepository = cardRepository
-        self.creditProvider = creditProvider
+        self.userDefaults = userDefaults
+
+        let preferences = GenerationPreferences.current(userDefaults: userDefaults)
+        outputDetail = preferences.outputDetail
+        outputTone = preferences.outputTone
+        enablesMotionEffects = preferences.enablesMotionEffects
     }
 
-    func load() async {
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            creditBalance = try await creditProvider.currentBalance()
-        } catch {
-            errorMessage = "Unable to load prototype info."
-        }
-
-        isLoading = false
-    }
-
-    func resetPrototypeData() async {
+    func resetSavedInsights() async {
         isResetting = true
         errorMessage = nil
         actionMessage = nil
 
         do {
             try await cardRepository.reset()
-            creditBalance = try await creditProvider.resetCredits()
-            actionMessage = "Local prototype data reset."
+            actionMessage = "Saved insights reset."
         } catch {
-            errorMessage = "Unable to reset local data."
+            errorMessage = "Unable to reset saved insights."
         }
 
         isResetting = false
     }
+
+    func clearActionMessage() {
+        actionMessage = nil
+    }
+
 }

@@ -28,13 +28,14 @@ struct AppleFoundationCardGenerator: CardGenerating {
             let task = Task {
                 do {
                     logGenerationMode(.foundationModels)
+                    let preferences = GenerationPreferences.current()
                     let session = LanguageModelSession(
                         model: model,
-                        instructions: Self.contentInstructions
+                        instructions: Self.contentInstructions(for: preferences)
                     )
                     
                     let response = try await session.respond(
-                        to: Self.contentPrompt(for: context),
+                        to: Self.contentPrompt(for: context, preferences: preferences),
                         generating: AppleFoundationGeneratedCardContent.self,
                         options: Self.generationOptions
                     )
@@ -118,7 +119,8 @@ struct AppleFoundationCardGenerator: CardGenerating {
 #endif
     }
     
-    private static let contentInstructions = """
+    private static func contentInstructions(for preferences: GenerationPreferences) -> String {
+        """
     You are an assistant that turns screenshot analysis context into useful, concise insight cards.
     
     Your job is not to summarize everything.
@@ -137,14 +139,20 @@ struct AppleFoundationCardGenerator: CardGenerating {
     - If important information is missing, include a missing information section.
     - Keep each section concise.
     - Section kind is for UI presentation only, not product classification.
+    - Match the user's output detail preference: \(preferences.outputDetail.title).
+    - Match the user's output tone preference: \(preferences.outputTone.title).
     """
+    }
     
     private static let generationOptions = GenerationOptions(
         sampling: .greedy,
         temperature: 0.2
     )
     
-    private static func contentPrompt(for context: VisionUnderstandingContext) -> String {
+    private static func contentPrompt(
+        for context: VisionUnderstandingContext,
+        preferences: GenerationPreferences
+    ) -> String {
         let visibleText = joinedPromptValues(context.visibleText)
         let missingInfo = joinedPromptValues(context.missingInfo)
         let evidence = joinedPromptValues(context.evidence)
@@ -163,11 +171,13 @@ struct AppleFoundationCardGenerator: CardGenerating {
             "- Be concise, specific, practical, and action-oriented.",
             "- Prefer practical next steps over generic summaries.",
             "- Generate only sections that are useful.",
-            "- Generate between 1 and 5 sections.",
+            "- Generate between 1 and \(preferences.outputDetail.maximumSectionCount) sections.",
             "- Do not force checklist, draft, or actions when they are not useful.",
             "- Do not include filler or meta commentary.",
             "- Do not start with generic phrases like \"This image appears to show\" unless uncertainty is important.",
             "- If useful information is missing or uncertain, include one missingInfo section instead of guessing.",
+            "- Output detail preference: \(preferences.outputDetail.title).",
+            "- Output tone preference: \(preferences.outputTone.title).",
             "",
             "Required output shape:",
             "",

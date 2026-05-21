@@ -33,7 +33,7 @@ struct AnalysisLoadingView: View {
                             .font(CFTypography.title)
                             .foregroundStyle(CFColors.textPrimary)
 
-                        Text("Prototype mode: analysis is simulated locally.")
+                        Text("Reading the image and preparing context.")
                             .font(CFTypography.callout)
                             .foregroundStyle(CFColors.textSecondary)
                     }

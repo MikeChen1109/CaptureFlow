@@ -1,4 +1,18 @@
-buildServer.json
-DerivedData/
-*.xcuserstate
+# macOS
+.DS_Store
+
+# Xcode user state
 xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+
+# Build output
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# SourceKit-LSP
+buildServer.json

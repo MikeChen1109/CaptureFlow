@@ -325,7 +325,7 @@ private struct SourceImagePresentation {
             systemImage = "square.and.arrow.down.fill"
         case .mock, .none:
             title = "Source Image"
-            subtitle = "Prototype sample"
+            subtitle = "Sample insight"
             hint = "Original preview unavailable"
             systemImage = "sparkles"
         }
@@ -352,7 +352,7 @@ private struct SourceImagePreview: Identifiable {
         case .photoLibrary, .shareExtension:
             "Source Image"
         case .mock:
-            "Prototype Source"
+            "Sample Source"
         }
     }
 }

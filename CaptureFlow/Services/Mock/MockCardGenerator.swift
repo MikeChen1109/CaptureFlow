@@ -7,7 +7,10 @@ struct MockCardGenerator: CardGenerating {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let content = GeneratedInsightCard.fallback(from: context)
+                    let preferences = GenerationPreferences.current()
+                    let content = GeneratedInsightCard
+                        .fallback(from: context)
+                        .applying(preferences)
                     let card = Self.placeholderCard(from: context, insight: content)
 
                     continuation.yield(.completed(card: card, content: content))
@@ -82,6 +85,18 @@ struct MockCardGenerator: CardGenerating {
                 )
             )
         }
+    }
+}
+
+private extension GeneratedInsightCard {
+    func applying(_ preferences: GenerationPreferences) -> GeneratedInsightCard {
+        var content = self
+        content.sections = Array(
+            sections
+                .sorted { $0.priority < $1.priority }
+                .prefix(preferences.outputDetail.maximumSectionCount)
+        )
+        return content
     }
 }
 

@@ -11,77 +11,107 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
                 header
-                prototypeNotice
-                creditsSection
-                resetSection
+                outputSection
+                experienceSection
+                dataSection
             }
             .padding(CFSpacing.large)
         }
         .captureFlowParticleBackground()
-        .navigationTitle("Prototype Info")
+        .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .task {
-            await viewModel.load()
-        }
-    }
+        .onChange(of: viewModel.actionMessage) { _, newValue in
+            guard newValue != nil else { return }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: CFSpacing.small) {
-            Text("CaptureFlow")
-                .font(CFTypography.title)
-                .foregroundStyle(CFColors.textPrimary)
-
-            Text("Local prototype mode")
-                .font(CFTypography.callout)
-                .foregroundStyle(CFColors.textSecondary)
-        }
-    }
-
-    private var prototypeNotice: some View {
-        CFCardContainer {
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                labelRow("Vision analysis", value: "MockVisionAnalyzer")
-                labelRow("Insight generation", value: "Apple Foundation Models")
-                labelRow("Credits", value: "MockCreditProvider")
-                labelRow("Storage", value: "In-memory repository")
-                labelRow("External actions", value: "Mock Reminder / Calendar")
-            }
-        }
-    }
-
-    private var creditsSection: some View {
-        CFCardContainer {
-            VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                Text("Mock Credits")
-                    .font(CFTypography.headline)
-                    .foregroundStyle(CFColors.textPrimary)
-
-                if viewModel.isLoading {
-                    ProgressView()
-                        .tint(CFColors.primaryOrange)
-                } else if let creditBalance = viewModel.creditBalance {
-                    Text("\(creditBalance.remaining) / \(creditBalance.limit) remaining")
-                        .font(CFTypography.title)
-                        .foregroundStyle(CFColors.orangeHighlight)
-                } else {
-                    Text("--")
-                        .font(CFTypography.title)
-                        .foregroundStyle(CFColors.textSecondary)
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                await MainActor.run {
+                    viewModel.clearActionMessage()
                 }
             }
         }
     }
 
-    private var resetSection: some View {
-        VStack(spacing: CFSpacing.medium) {
-            CFSecondaryButton(
-                viewModel.isResetting ? "Resetting..." : "Reset Local Data",
-                systemImage: "arrow.counterclockwise",
-                isDisabled: viewModel.isResetting
-            ) {
-                Task {
-                    await viewModel.resetPrototypeData()
+    private var header: some View {
+        VStack(alignment: .leading, spacing: CFSpacing.small) {
+            Text("Settings")
+                .font(CFTypography.title)
+                .foregroundStyle(CFColors.textPrimary)
+
+            Text("Tune generated insights and app motion.")
+                .font(CFTypography.callout)
+                .foregroundStyle(CFColors.textSecondary)
+        }
+    }
+
+    private var outputSection: some View {
+        CFCardContainer {
+            VStack(alignment: .leading, spacing: CFSpacing.large) {
+                sectionHeader("Generated Content", systemImage: "text.badge.star")
+
+                VStack(alignment: .leading, spacing: CFSpacing.medium) {
+                    settingLabel("Detail")
+
+                    Picker("Detail", selection: $viewModel.outputDetail) {
+                        ForEach(InsightOutputDetail.allCases) { detail in
+                            Text(detail.title).tag(detail)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                VStack(alignment: .leading, spacing: CFSpacing.medium) {
+                    settingLabel("Tone")
+
+                    Picker("Tone", selection: $viewModel.outputTone) {
+                        ForEach(InsightOutputTone.allCases) { tone in
+                            Text(tone.title).tag(tone)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+        }
+    }
+
+    private var experienceSection: some View {
+        CFCardContainer {
+            VStack(alignment: .leading, spacing: CFSpacing.large) {
+                sectionHeader("Experience", systemImage: "sparkles")
+
+                Toggle(isOn: $viewModel.enablesMotionEffects) {
+                    VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
+                        Text("Motion Effects")
+                            .font(CFTypography.callout.weight(.semibold))
+                            .foregroundStyle(CFColors.textPrimary)
+
+                        Text("Loading and reveal animations")
+                            .font(CFTypography.caption)
+                            .foregroundStyle(CFColors.textSecondary)
+                    }
+                }
+                .tint(CFColors.primaryOrange)
+            }
+        }
+    }
+
+    private var dataSection: some View {
+        VStack(alignment: .leading, spacing: CFSpacing.medium) {
+            CFCardContainer {
+                VStack(alignment: .leading, spacing: CFSpacing.large) {
+                    sectionHeader("Data", systemImage: "tray.full")
+
+                    CFSecondaryButton(
+                        viewModel.isResetting ? "Resetting..." : "Reset Saved Insights",
+                        systemImage: "arrow.counterclockwise",
+                        tone: .destructive,
+                        isDisabled: viewModel.isResetting
+                    ) {
+                        Task {
+                            await viewModel.resetSavedInsights()
+                        }
+                    }
                 }
             }
 
@@ -101,18 +131,21 @@ struct SettingsView: View {
         }
     }
 
-    private func labelRow(_ title: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+    private func sectionHeader(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: CFSpacing.small) {
+            Image(systemName: systemImage)
+                .imageScale(.medium)
+                .foregroundStyle(CFColors.orangeHighlight)
+
             Text(title)
-                .font(CFTypography.callout)
-                .foregroundStyle(CFColors.textSecondary)
-
-            Spacer(minLength: CFSpacing.medium)
-
-            Text(value)
-                .font(CFTypography.callout.weight(.semibold))
+                .font(CFTypography.headline)
                 .foregroundStyle(CFColors.textPrimary)
-                .multilineTextAlignment(.trailing)
         }
+    }
+
+    private func settingLabel(_ title: String) -> some View {
+        Text(title)
+            .font(CFTypography.callout.weight(.semibold))
+            .foregroundStyle(CFColors.textPrimary)
     }
 }

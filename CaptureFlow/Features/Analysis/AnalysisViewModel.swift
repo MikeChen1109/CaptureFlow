@@ -18,20 +18,16 @@ final class AnalysisViewModel: ObservableObject {
         "Understanding context"
     ]
 
-    private let creditProvider: any CreditProviding
     private let visionAnalyzer: any VisionAnalyzing
 
     init(
-        creditProvider: any CreditProviding,
         visionAnalyzer: any VisionAnalyzing
     ) {
-        self.creditProvider = creditProvider
         self.visionAnalyzer = visionAnalyzer
     }
 
     convenience init(container: AppContainer) {
         self.init(
-            creditProvider: container.creditProvider,
             visionAnalyzer: container.visionAnalyzer
         )
     }
@@ -43,8 +39,6 @@ final class AnalysisViewModel: ObservableObject {
 
         do {
             try await Task.sleep(for: .milliseconds(350))
-            debugLog("Consuming mock credit")
-            _ = try await creditProvider.consumeCredit(for: .analyzeImage)
 
             currentStepIndex = 1
             try await Task.sleep(for: .milliseconds(450))
@@ -60,10 +54,6 @@ final class AnalysisViewModel: ObservableObject {
 
             state = .completed
             return context
-        } catch ServiceError.insufficientCredits {
-            debugLog("Analysis failed: insufficient credits")
-            state = .failed("No mock credits remaining.")
-            return nil
         } catch {
             debugLog("Analysis failed: \(error.debugSummary)")
             state = .failed("Analysis failed: \(error.userFacingDebugMessage)")
@@ -128,8 +118,6 @@ private extension ServiceError {
             "No image data or source image was provided."
         case .unsupportedCardType(let cardType):
             "Unsupported card type: \(cardType.rawValue)."
-        case .insufficientCredits:
-            "No mock credits remaining."
         case .permissionDenied:
             "Permission denied."
         case .invalidGeneratedCard:

@@ -4,7 +4,6 @@ import Combine
 @MainActor
 final class HomeViewModel: ObservableObject {
     @Published private(set) var cards: [SavedInsightCard] = []
-    @Published private(set) var creditBalance: CreditBalance?
     @Published private(set) var isLoading = false
     @Published private(set) var hasAttemptedInitialLoad = false
     @Published private(set) var creatingReminderCardID: UUID?
@@ -13,19 +12,16 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var actionMessage: String?
 
     private let cardRepository: any CardRepository
-    private let creditProvider: any CreditProviding
     private let reminderCreator: any ReminderCreating
     private let calendarCreator: any CalendarCreating
     private var didCompleteInitialLoad: Bool
 
     init(
         cardRepository: any CardRepository,
-        creditProvider: any CreditProviding,
         reminderCreator: any ReminderCreating,
         calendarCreator: any CalendarCreating
     ) {
         self.cardRepository = cardRepository
-        self.creditProvider = creditProvider
         self.reminderCreator = reminderCreator
         self.calendarCreator = calendarCreator
         self.didCompleteInitialLoad = false
@@ -34,7 +30,6 @@ final class HomeViewModel: ObservableObject {
     convenience init(container: AppContainer) {
         self.init(
             cardRepository: container.cardRepository,
-            creditProvider: container.creditProvider,
             reminderCreator: container.reminderCreator,
             calendarCreator: container.calendarCreator
         )
@@ -61,11 +56,7 @@ final class HomeViewModel: ObservableObject {
         actionMessage = nil
 
         do {
-            async let cards = cardRepository.fetchRecentCards(limit: 20)
-            async let balance = creditProvider.currentBalance()
-
-            self.cards = try await cards
-            self.creditBalance = try await balance
+            cards = try await cardRepository.fetchRecentCards(limit: 20)
             didCompleteInitialLoad = true
         } catch {
             errorMessage = "Unable to load inbox."

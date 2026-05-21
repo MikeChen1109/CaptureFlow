@@ -36,10 +36,10 @@ struct CardResultGenerationView: View {
     @State private var loadingStepIndex = LoadingStep.readingImage.rawValue
     @State private var loadingErrorMessage: String?
     @State private var revealedSectionCount = 0
+    @AppStorage(GenerationPreferences.Keys.enablesMotionEffects) private var enablesMotionEffects = true
 
     init(
         request: VisionAnalysisRequest,
-        creditProvider: any CreditProviding,
         visionAnalyzer: any VisionAnalyzing,
         cardGenerator: any CardGenerating,
         cardRepository: any CardRepository,
@@ -60,7 +60,6 @@ struct CardResultGenerationView: View {
 
         _analysisViewModel = StateObject(
             wrappedValue: AnalysisViewModel(
-                creditProvider: creditProvider,
                 visionAnalyzer: visionAnalyzer
             )
         )
@@ -94,6 +93,7 @@ struct CardResultGenerationView: View {
                     currentStepIndex: loadingStepIndex,
                     steps: LoadingStep.allTitles,
                     errorMessage: loadingErrorMessage,
+                    enablesMotionEffects: enablesMotionEffects,
                     onRetry: retryFlow,
                     onChangeImage: onChangeImage,
                     onCancel: onCancel
@@ -101,7 +101,7 @@ struct CardResultGenerationView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.28), value: phase)
+        .animation(enablesMotionEffects ? .easeInOut(duration: 0.28) : nil, value: phase)
         .task(id: flowAttemptID) {
             await runPipeline()
         }
@@ -159,10 +159,16 @@ struct CardResultGenerationView: View {
     }
 
     private func revealContentTopToBottom() async {
+        let totalSections = viewModel.sectionStates.count
+        guard enablesMotionEffects else {
+            revealedSectionCount = totalSections
+            phase = .ready
+            return
+        }
+
         withAnimation(.easeOut(duration: 0.2)) {
             phase = .revealing
         }
-        let totalSections = viewModel.sectionStates.count
         guard totalSections > 0 else {
             withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
                 phase = .ready
@@ -210,6 +216,7 @@ private struct UnifiedGenerationLoadingView: View {
     let currentStepIndex: Int
     let steps: [String]
     let errorMessage: String?
+    let enablesMotionEffects: Bool
     let onRetry: () -> Void
     let onChangeImage: () -> Void
     let onCancel: () -> Void
@@ -237,7 +244,10 @@ private struct UnifiedGenerationLoadingView: View {
                         .font(.system(size: 42, weight: .semibold))
                         .foregroundStyle(CFColors.orangeHighlight)
                 }
-                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
+                .animation(
+                    enablesMotionEffects ? .easeInOut(duration: 1.2).repeatForever(autoreverses: true) : nil,
+                    value: pulse
+                )
 
                 CFCardContainer {
                     VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
@@ -271,7 +281,7 @@ private struct UnifiedGenerationLoadingView: View {
                     ],
                     beamBlur: 10,
                     cornerRadius: CFCornerRadius.large,
-                    isEnabled: errorMessage == nil
+                    isEnabled: errorMessage == nil && enablesMotionEffects
                 )
                 .padding(.horizontal, CFSpacing.large)
 
@@ -290,7 +300,7 @@ private struct UnifiedGenerationLoadingView: View {
             }
         }
         .task {
-            pulse = true
+            pulse = enablesMotionEffects
         }
     }
 
@@ -334,8 +344,6 @@ private extension ServiceError {
             "No image was found."
         case .unsupportedCardType(let cardType):
             "Unsupported card type: \(cardType.rawValue)."
-        case .insufficientCredits:
-            "No mock credits remaining."
         case .permissionDenied:
             "Permission denied."
         case .invalidGeneratedCard:

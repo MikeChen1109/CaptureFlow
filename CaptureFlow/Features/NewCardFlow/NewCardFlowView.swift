@@ -34,7 +34,6 @@ struct NewCardFlowView: View {
                 case .cardResult(let request):
                     CardResultGenerationView(
                         request: request,
-                        creditProvider: container.creditProvider,
                         visionAnalyzer: container.visionAnalyzer,
                         cardGenerator: container.cardGenerator,
                         cardRepository: container.cardRepository,
@@ -63,5 +62,5 @@ struct NewCardFlowView: View {
 }
 
 #Preview {
-    NewCardFlowView(container: .prototype(), onFinish: { _ in })
+    NewCardFlowView(container: .local(), onFinish: { _ in })
 }

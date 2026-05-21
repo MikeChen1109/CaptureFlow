@@ -398,8 +398,6 @@ private extension ServiceError {
             "No image data was provided."
         case .unsupportedCardType(let cardType):
             "Unsupported card type: \(cardType.rawValue)."
-        case .insufficientCredits:
-            "No mock credits remaining."
         case .permissionDenied:
             "Permission denied."
         case .invalidGeneratedCard:

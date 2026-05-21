@@ -15,7 +15,7 @@ struct ContentView: View {
     @State private var isBootstrappingHome = true
 
     init(
-        container: AppContainer = .prototype()
+        container: AppContainer = .local()
     ) {
         self.container = container
         _homeViewModel = StateObject(wrappedValue: HomeViewModel(container: container))
@@ -70,8 +70,7 @@ struct ContentView: View {
                 case .settings:
                     SettingsView(
                         viewModel: SettingsViewModel(
-                            cardRepository: container.cardRepository,
-                            creditProvider: container.creditProvider
+                            cardRepository: container.cardRepository
                         )
                     )
                 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeLoadingView: View {
     @State private var pulse = false
+    @AppStorage(GenerationPreferences.Keys.enablesMotionEffects) private var enablesMotionEffects = true
 
     var body: some View {
         ZStack {
@@ -35,14 +36,17 @@ struct HomeLoadingView: View {
                         .font(.system(size: 44, weight: .semibold))
                         .foregroundStyle(CFColors.orangeHighlight)
                 }
-                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
+                .animation(
+                    enablesMotionEffects ? .easeInOut(duration: 1.2).repeatForever(autoreverses: true) : nil,
+                    value: pulse
+                )
 
                 VStack(spacing: CFSpacing.small) {
                     Text("Preparing Your Inbox")
                         .font(CFTypography.title)
                         .foregroundStyle(CFColors.textPrimary)
 
-                    Text("Syncing cards and credits...")
+                    Text("Loading saved insights...")
                         .font(CFTypography.callout)
                         .foregroundStyle(CFColors.textSecondary)
                 }
@@ -53,7 +57,7 @@ struct HomeLoadingView: View {
             .padding(.horizontal, CFSpacing.large)
         }
         .task {
-            pulse = true
+            pulse = enablesMotionEffects
         }
     }
 }

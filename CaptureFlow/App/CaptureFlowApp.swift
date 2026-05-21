@@ -10,7 +10,7 @@ import UIKit
 
 @main
 struct CaptureFlowApp: App {
-    private let container = AppContainer.prototype()
+    private let container = AppContainer.local()
 
     init() {
         let appearance = UINavigationBarAppearance()
