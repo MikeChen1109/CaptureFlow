@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="CaptureFlow/Resources/Assets.xcassets/AppIcon.appiconset/1024.png" alt="CaptureFlow app icon" width="128">
+</p>
+
 # CaptureFlow
 
 CaptureFlow is a local-first iOS app for turning captured visual context into useful insight cards. A user can capture or import an image, analyze it, generate an editable insight, save it to a local inbox, and turn supported insights into Reminders or Calendar events.
