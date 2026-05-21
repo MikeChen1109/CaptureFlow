@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     let container: AppContainer
     @StateObject private var homeViewModel: HomeViewModel
+    @StateObject private var inboxViewModel: InboxViewModel
     @State private var path: [AppRoute] = []
     @State private var isShowingNewCardFlow = false
     @State private var isBootstrappingHome = true
@@ -19,6 +20,7 @@ struct ContentView: View {
     ) {
         self.container = container
         _homeViewModel = StateObject(wrappedValue: HomeViewModel(container: container))
+        _inboxViewModel = StateObject(wrappedValue: InboxViewModel(container: container))
     }
 
     var body: some View {
@@ -38,6 +40,9 @@ struct ContentView: View {
                         onSelectCard: { card in
                             path.append(.cardDetail(card.id))
                         },
+                        onOpenInbox: {
+                            path.append(.inbox)
+                        },
                         onOpenSettings: {
                             path.append(.settings)
                         }
@@ -56,15 +61,25 @@ struct ContentView: View {
                         ),
                         onCardUpdated: { updatedCard in
                             homeViewModel.applyUpdatedCard(updatedCard)
+                            inboxViewModel.applyUpdatedCard(updatedCard)
                         },
                         onCardDeleted: {
                             homeViewModel.removeCardLocally(cardID)
+                            inboxViewModel.removeCardLocally(cardID)
                             Task {
                                 await homeViewModel.refresh()
+                                await inboxViewModel.refresh()
                             }
                         },
                         onClose: {
                             path.removeLast()
+                        }
+                    )
+                case .inbox:
+                    InboxView(
+                        viewModel: inboxViewModel,
+                        onSelectCard: { card in
+                            path.append(.cardDetail(card.id))
                         }
                     )
                 case .settings:
@@ -97,6 +112,7 @@ struct ContentView: View {
 
         Task {
             await homeViewModel.refresh()
+            await inboxViewModel.refresh()
         }
         showDynamicIslandToast(
             .success(

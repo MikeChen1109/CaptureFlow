@@ -2,20 +2,24 @@ import SwiftUI
 
 struct HomeView: View {
     @StateObject private var viewModel: HomeViewModel
+    @State private var showsHeaderCreateButton = false
     @Environment(\.showDynamicIslandToast) private var showDynamicIslandToast
     private let onCreateCard: () -> Void
     private let onSelectCard: (SavedInsightCard) -> Void
+    private let onOpenInbox: () -> Void
     private let onOpenSettings: () -> Void
 
     init(
         viewModel: HomeViewModel,
         onCreateCard: @escaping () -> Void = {},
         onSelectCard: @escaping (SavedInsightCard) -> Void = { _ in },
+        onOpenInbox: @escaping () -> Void = {},
         onOpenSettings: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
         self.onCreateCard = onCreateCard
         self.onSelectCard = onSelectCard
+        self.onOpenInbox = onOpenInbox
         self.onOpenSettings = onOpenSettings
     }
 
@@ -78,6 +82,12 @@ struct HomeView: View {
 
             Spacer(minLength: CFSpacing.medium)
 
+            if showsHeaderCreateButton {
+                headerCreateButton
+                    .transition(.scale(scale: 0.84).combined(with: .opacity))
+            }
+
+            inboxButton
             settingsButton
         }
         .padding(.horizontal, CFSpacing.large)
@@ -122,8 +132,41 @@ struct HomeView: View {
         .accessibilityLabel("Settings")
     }
 
+    private var inboxButton: some View {
+        Button(action: onOpenInbox) {
+            Image(systemName: "tray.full.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(CFColors.textPrimary)
+                .frame(width: 32, height: 32)
+                .background(CFColors.secondarySurface)
+                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous)
+                        .stroke(CFColors.border, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Inbox")
+    }
+
+    private var headerCreateButton: some View {
+        Button(action: onCreateCard) {
+            Image(systemName: "plus")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(CFColors.background)
+                .frame(width: 32, height: 32)
+                .background(CFColors.primaryOrange)
+                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("New Insight")
+    }
+
     private var actionButtons: some View {
         CFPrimaryButton("New Insight", systemImage: "plus.viewfinder", action: onCreateCard)
+            .onScrollVisibilityChange(threshold: 0.01) { isVisible in
+                updateHeaderCreateButtonVisibility(shouldShow: !isVisible)
+            }
     }
 
     @ViewBuilder
@@ -151,6 +194,16 @@ struct HomeView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func updateHeaderCreateButtonVisibility(shouldShow: Bool) {
+        guard showsHeaderCreateButton != shouldShow else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showsHeaderCreateButton = shouldShow
         }
     }
 }

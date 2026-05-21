@@ -29,7 +29,7 @@ struct AppContainer: Sendable {
             cardGenerator: defaultCardGenerator(),
             reminderCreator: EventKitReminderCreator(store: eventKitStore),
             calendarCreator: EventKitCalendarCreator(store: eventKitStore),
-            cardRepository: InMemoryCardRepository(seedCards: MockHomeSeedCards.cards())
+            cardRepository: InMemoryCardRepository()
         )
     }
 
