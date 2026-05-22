@@ -1,6 +1,6 @@
 import Foundation
 
-enum CardSource: String, Codable, CaseIterable, Identifiable, Sendable {
+enum CardSource: String, nonisolated Codable, nonisolated Hashable, CaseIterable, Identifiable, Sendable {
     case camera
     case photoLibrary
     case shareExtension

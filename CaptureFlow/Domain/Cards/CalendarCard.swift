@@ -1,6 +1,6 @@
 import Foundation
 
-struct CalendarCard: Codable, Hashable, Identifiable, Sendable {
+struct CalendarCard: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     var metadata: CardMetadata
     var title: String
     var startDate: Date

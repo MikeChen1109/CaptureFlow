@@ -1,6 +1,6 @@
 import Foundation
 
-struct ShoppingCard: Codable, Hashable, Identifiable, Sendable {
+struct ShoppingCard: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     var metadata: CardMetadata
     var productName: String
     var price: String?

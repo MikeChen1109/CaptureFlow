@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 struct AppContainer: Sendable {
     let visionAnalyzer: any VisionAnalyzing
@@ -29,8 +30,18 @@ struct AppContainer: Sendable {
             cardGenerator: defaultCardGenerator(),
             reminderCreator: EventKitReminderCreator(store: eventKitStore),
             calendarCreator: EventKitCalendarCreator(store: eventKitStore),
-            cardRepository: InMemoryCardRepository()
+            cardRepository: defaultCardRepository()
         )
+    }
+
+    private static func defaultCardRepository() -> any CardRepository {
+        do {
+            let modelContainer = try ModelContainer(for: SwiftDataSavedInsightCard.self)
+            return SwiftDataCardRepository(modelContainer: modelContainer)
+        } catch {
+            assertionFailure("Unable to initialize SwiftData card repository: \(error)")
+            return InMemoryCardRepository()
+        }
     }
 
     private static func defaultCardGenerator() -> any CardGenerating {

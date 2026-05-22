@@ -37,6 +37,20 @@ struct CardResultView: View {
                 }
 
                 if viewModel.isGenerationCompleted && isResultFullyRevealed {
+                    CustomFieldsSection(
+                        customFields: viewModel.customFields,
+                        onAddCustomField: { fieldType, value in
+                            viewModel.addCustomField(type: fieldType, value: value)
+                        },
+                        onRemoveCustomField: { fieldID in
+                            viewModel.removeCustomField(id: fieldID)
+                        },
+                        onRestoreCustomField: { removedField in
+                            viewModel.restoreCustomField(removedField)
+                        }
+                    )
+                    .transition(.cfSectionReveal)
+
                     CardResultActionsCard(
                         viewModel: viewModel,
                         isFinishing: isFinishing,

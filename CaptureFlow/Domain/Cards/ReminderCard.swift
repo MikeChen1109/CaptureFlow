@@ -1,6 +1,6 @@
 import Foundation
 
-struct ReminderCard: Codable, Hashable, Identifiable, Sendable {
+struct ReminderCard: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     var metadata: CardMetadata
     var title: String
     var notes: String
@@ -37,7 +37,7 @@ struct ReminderCard: Codable, Hashable, Identifiable, Sendable {
 }
 
 extension ReminderCard {
-    enum Priority: String, Codable, CaseIterable, Identifiable, Sendable {
+    enum Priority: String, nonisolated Codable, nonisolated Hashable, CaseIterable, Identifiable, Sendable {
         case none
         case low
         case medium

@@ -1,6 +1,6 @@
 import Foundation
 
-struct JobCard: Codable, Hashable, Identifiable, Sendable {
+struct JobCard: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     var metadata: CardMetadata
     var company: String
     var role: String

@@ -1,6 +1,6 @@
 import Foundation
 
-enum CardStatus: String, Codable, CaseIterable, Identifiable, Sendable {
+enum CardStatus: String, nonisolated Codable, nonisolated Hashable, CaseIterable, Identifiable, Sendable {
     case pending
     case saved
     case completed

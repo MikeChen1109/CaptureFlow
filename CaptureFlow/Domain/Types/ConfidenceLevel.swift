@@ -1,6 +1,6 @@
 import Foundation
 
-enum ConfidenceLevel: String, Codable, CaseIterable, Identifiable, Sendable {
+enum ConfidenceLevel: String, nonisolated Codable, nonisolated Hashable, CaseIterable, Identifiable, Sendable {
     case low
     case medium
     case high

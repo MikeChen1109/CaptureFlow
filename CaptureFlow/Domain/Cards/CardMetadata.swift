@@ -1,6 +1,6 @@
 import Foundation
 
-struct CardMetadata: Codable, Hashable, Identifiable, Sendable {
+struct CardMetadata: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     var id: UUID
     var createdAt: Date
     var updatedAt: Date

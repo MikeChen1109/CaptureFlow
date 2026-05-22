@@ -67,6 +67,7 @@ final class CardDetailViewModel: ObservableObject {
 
         do {
             card = try await cardRepository.fetchCard(id: cardID)
+            customFields = card?.customFields ?? []
             if card == nil {
                 errorMessage = "Insight not found."
             }
@@ -99,6 +100,10 @@ final class CardDetailViewModel: ObservableObject {
         )
         actionMessage = nil
         errorMessage = nil
+
+        Task {
+            await persistCustomFields()
+        }
     }
 
     @discardableResult
@@ -108,12 +113,19 @@ final class CardDetailViewModel: ObservableObject {
         }
 
         let field = customFields.remove(at: index)
+        Task {
+            await persistCustomFields()
+        }
         return RemovedCardResultCustomField(field: field, originalIndex: index)
     }
 
     func restoreCustomField(_ removed: RemovedCardResultCustomField) {
         let index = min(max(removed.originalIndex, 0), customFields.count)
         customFields.insert(removed.field, at: index)
+
+        Task {
+            await persistCustomFields()
+        }
     }
 
     func createReminder() async -> SavedInsightCard? {
@@ -305,6 +317,18 @@ final class CardDetailViewModel: ObservableObject {
             errorMessage = "Unable to delete this card."
             isDeleting = false
             return false
+        }
+    }
+
+    private func persistCustomFields() async {
+        guard let card else { return }
+
+        do {
+            self.card = try await cardRepository.update(card.updatingCustomFields(customFields))
+            actionMessage = nil
+            errorMessage = nil
+        } catch {
+            errorMessage = "Unable to save custom fields."
         }
     }
 }
