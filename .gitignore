@@ -16,3 +16,6 @@ build/
 
 # SourceKit-LSP
 buildServer.json
+
+# Local API credentials
+CaptureFlow/Resources/LocalSecrets.plist

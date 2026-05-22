@@ -30,16 +30,14 @@ struct MockVisionAnalyzer: VisionAnalyzing {
         let resolvedCardType = resolvedType(for: selectedCardType)
 
         switch resolvedCardType {
-        case .auto:
-            return context(for: .shopping, sourceImage: sourceImage)
         case .reminder:
             return reminderContext(requestedCardType: selectedCardType, sourceImage: sourceImage)
-        case .calendar:
+        case .event:
             return calendarContext(requestedCardType: selectedCardType, sourceImage: sourceImage)
-        case .note:
-            return noteContext(requestedCardType: selectedCardType, sourceImage: sourceImage)
-        case .shopping:
-            return shoppingContext(requestedCardType: selectedCardType, sourceImage: sourceImage)
+        case .note, .article, .document, .appScreen, .contact, .travel, .other, .unknown:
+            return noteContext(requestedCardType: selectedCardType, resolvedCardType: resolvedCardType, sourceImage: sourceImage)
+        case .shopping, .food, .receipt, .product, .promotion:
+            return shoppingContext(requestedCardType: selectedCardType, resolvedCardType: resolvedCardType, sourceImage: sourceImage)
         case .job:
             return jobContext(requestedCardType: selectedCardType, sourceImage: sourceImage)
         }
@@ -47,11 +45,12 @@ struct MockVisionAnalyzer: VisionAnalyzing {
 
     private func shoppingContext(
         requestedCardType: CardType,
+        resolvedCardType: CardType = .shopping,
         sourceImage: CardSourceImage?
     ) -> VisionUnderstandingContext {
         VisionUnderstandingContext(
             requestedCardType: requestedCardType,
-            resolvedCardType: .shopping,
+            resolvedCardType: resolvedCardType,
             sourceImage: sourceImage,
             sceneTitle: "Mechanical keyboard deal",
             sceneSummary: "An orange mechanical keyboard is shown with a visible price, limited-time discount, and hot-swap switch feature.",
@@ -164,11 +163,12 @@ struct MockVisionAnalyzer: VisionAnalyzing {
 
     private func calendarContext(
         requestedCardType: CardType,
+        resolvedCardType: CardType = .event,
         sourceImage: CardSourceImage?
     ) -> VisionUnderstandingContext {
         VisionUnderstandingContext(
             requestedCardType: requestedCardType,
-            resolvedCardType: .calendar,
+            resolvedCardType: resolvedCardType,
             sourceImage: sourceImage,
             sceneTitle: "Product review sync",
             sceneSummary: "A Product Review Sync meeting is shown for 2026-06-18 from 14:00 to 15:00 at Taipei 101 Meeting Room.",
@@ -222,11 +222,12 @@ struct MockVisionAnalyzer: VisionAnalyzing {
 
     private func noteContext(
         requestedCardType: CardType,
+        resolvedCardType: CardType = .note,
         sourceImage: CardSourceImage?
     ) -> VisionUnderstandingContext {
         VisionUnderstandingContext(
             requestedCardType: requestedCardType,
-            resolvedCardType: .note,
+            resolvedCardType: resolvedCardType,
             sourceImage: sourceImage,
             sceneTitle: "Launch checklist whiteboard",
             sceneSummary: "A launch checklist is shown with tasks for polishing onboarding, testing the import flow, and preparing the demo script.",
@@ -350,7 +351,7 @@ struct MockVisionAnalyzer: VisionAnalyzing {
 
     private func resolvedType(for selectedCardType: CardType) -> CardType {
         switch selectedCardType {
-        case .auto:
+        case .unknown:
             Self.randomMockCardType()
         default:
             selectedCardType
@@ -358,7 +359,7 @@ struct MockVisionAnalyzer: VisionAnalyzing {
     }
 
     private static func randomMockCardType() -> CardType {
-        [.reminder, .calendar, .note, .shopping, .job].randomElement() ?? .shopping
+        [.reminder, .event, .note, .shopping, .job].randomElement() ?? .shopping
     }
 
     private func debugLog(_ message: String) {

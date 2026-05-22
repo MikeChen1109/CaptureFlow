@@ -26,7 +26,7 @@ struct AppContainer: Sendable {
         let eventKitStore = EventKitActionStore()
 
         return AppContainer(
-            visionAnalyzer: MockVisionAnalyzer(),
+            visionAnalyzer: defaultVisionAnalyzer(),
             cardGenerator: defaultCardGenerator(),
             reminderCreator: EventKitReminderCreator(store: eventKitStore),
             calendarCreator: EventKitCalendarCreator(store: eventKitStore),
@@ -41,6 +41,24 @@ struct AppContainer: Sendable {
         } catch {
             assertionFailure("Unable to initialize SwiftData card repository: \(error)")
             return InMemoryCardRepository()
+        }
+    }
+
+    private static func defaultVisionAnalyzer() -> any VisionAnalyzing {
+        let configuration = AIProviderConfiguration.current()
+
+        switch configuration.provider {
+        case .mock:
+            return MockVisionAnalyzer()
+        case .openAI:
+            guard configuration.openAI.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+                assertionFailure("CAPTUREFLOW_AI_PROVIDER is openai but no OpenAI API key is configured.")
+                return MockVisionAnalyzer()
+            }
+
+            return ProviderVisionAnalyzer(
+                provider: OpenAIVisionAnalysisProvider(configuration: configuration.openAI)
+            )
         }
     }
 

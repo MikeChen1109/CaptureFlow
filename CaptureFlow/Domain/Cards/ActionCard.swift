@@ -12,17 +12,21 @@ enum ActionCard: nonisolated Codable, nonisolated Hashable, Identifiable, Sendab
     }
 
     nonisolated var type: CardType {
+        if let cardType = metadata.cardType {
+            return cardType
+        }
+
         switch self {
         case .reminder:
-            .reminder
+            return .reminder
         case .calendar:
-            .calendar
+            return .event
         case .note:
-            .note
+            return .note
         case .shopping:
-            .shopping
+            return .shopping
         case .job:
-            .job
+            return .job
         }
     }
 

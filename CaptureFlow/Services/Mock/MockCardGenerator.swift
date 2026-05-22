@@ -29,6 +29,7 @@ struct MockCardGenerator: CardGenerating {
     static func placeholderCard(from context: VisionUnderstandingContext, insight: GeneratedInsightCard? = nil) -> ActionCard {
         let metadata = CardMetadata(
             sourceImage: context.sourceImage,
+            cardType: context.resolvedCardType,
             confidence: context.confidence,
             confidenceScore: context.confidenceScore
         )
@@ -42,7 +43,7 @@ struct MockCardGenerator: CardGenerating {
             ?? context.sceneSummary
 
         switch context.resolvedCardType {
-        case .auto, .note:
+        case .unknown, .note, .article, .document, .appScreen, .contact, .travel, .other:
             return .note(
                 NoteCard(
                     metadata: metadata,
@@ -57,7 +58,7 @@ struct MockCardGenerator: CardGenerating {
                     title: fallbackTitle
                 )
             )
-        case .calendar:
+        case .event:
             let startDate = Date()
             return .calendar(
                 CalendarCard(
@@ -67,7 +68,7 @@ struct MockCardGenerator: CardGenerating {
                     endDate: startDate.addingTimeInterval(3600)
                 )
             )
-        case .shopping:
+        case .shopping, .food, .receipt, .product, .promotion:
             return .shopping(
                 ShoppingCard(
                     metadata: metadata,

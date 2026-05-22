@@ -376,11 +376,11 @@ private struct CardResultFailureCard: View {
 private extension CardType {
     var systemImage: String {
         switch self {
-        case .auto:
+        case .unknown:
             "sparkles"
         case .reminder:
             "bell.badge.fill"
-        case .calendar:
+        case .event:
             "calendar.badge.plus"
         case .note:
             "note.text"
@@ -388,6 +388,26 @@ private extension CardType {
             "bag.fill"
         case .job:
             "briefcase.fill"
+        case .travel:
+            "airplane"
+        case .food:
+            "fork.knife"
+        case .receipt:
+            "receipt.fill"
+        case .article:
+            "newspaper.fill"
+        case .product:
+            "shippingbox.fill"
+        case .contact:
+            "person.crop.circle.fill"
+        case .promotion:
+            "tag.fill"
+        case .document:
+            "doc.text.fill"
+        case .appScreen:
+            "app.fill"
+        case .other:
+            "square.grid.2x2.fill"
         }
     }
 }
