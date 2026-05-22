@@ -42,6 +42,7 @@ struct SavedInsightCard: nonisolated Codable, nonisolated Hashable, nonisolated 
                 createdAt: adapterMetadata?.createdAt ?? .now,
                 updatedAt: adapterMetadata?.updatedAt ?? .now,
                 sourceImage: adapterMetadata?.sourceImage,
+                cardType: adapterMetadata?.cardType,
                 confidence: adapterMetadata?.confidence ?? ConfidenceLevel.from(score: insight.confidence),
                 confidenceScore: adapterMetadata?.confidenceScore ?? insight.confidence,
                 status: adapterMetadata?.status ?? .pending

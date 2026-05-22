@@ -4,6 +4,72 @@ import Testing
 @testable import CaptureFlow
 
 struct CardResultCustomFieldTests {
+    @Test func cardTypeCasesStayWithinSupportedSet() {
+        #expect(CardType.allCases.map(\.rawValue) == [
+            "unknown",
+            "shopping",
+            "event",
+            "note",
+            "job",
+            "travel",
+            "food",
+            "receipt",
+            "article",
+            "product",
+            "reminder",
+            "contact",
+            "promotion",
+            "document",
+            "appScreen",
+            "other"
+        ])
+    }
+
+    @Test func cardTypeDecodesLegacyRawValues() throws {
+        let decoder = JSONDecoder()
+
+        let legacyAuto = try decoder.decode(CardType.self, from: Data(#""auto""#.utf8))
+        let legacyCalendar = try decoder.decode(CardType.self, from: Data(#""calendar""#.utf8))
+        let unsupported = try decoder.decode(CardType.self, from: Data(#""unsupported""#.utf8))
+
+        #expect(legacyAuto == .unknown)
+        #expect(legacyCalendar == .event)
+        #expect(unsupported == .unknown)
+    }
+
+    @Test func visionAnalysisDTOMapsToContextWithLocalSourceImage() {
+        let sourceImage = CardSourceImage(
+            source: .photoLibrary,
+            localPath: "SourceImages/example.jpg",
+            assetLocalIdentifier: "asset-123"
+        )
+        let request = VisionAnalysisRequest(
+            imageData: Data([0xFF, 0xD8, 0xFF]),
+            sourceImage: sourceImage,
+            selectedCardType: .unknown
+        )
+        let dto = VisionAnalysisDTO(
+            resolvedCardType: .receipt,
+            sceneTitle: "Lunch receipt",
+            sceneSummary: "A receipt with a total amount.",
+            entities: [
+                VisionEntityDTO(type: "price", label: "Total", value: "NT$320", confidence: 0.91)
+            ],
+            possibleActions: [
+                VisionActionHintDTO(title: "Save Receipt", description: "Keep the expense details.", actionType: "save")
+            ],
+            confidenceScore: 0.88
+        )
+
+        let context = dto.understandingContext(from: request)
+
+        #expect(context.requestedCardType == .unknown)
+        #expect(context.resolvedCardType == .receipt)
+        #expect(context.sourceImage == sourceImage)
+        #expect(context.entities.first?.type == .price)
+        #expect(context.possibleActions.first?.actionType == .save)
+    }
+
     @Test func resolverTrimsPlainTextValues() {
         let resolver = CardResultCustomFieldValueResolver()
 
