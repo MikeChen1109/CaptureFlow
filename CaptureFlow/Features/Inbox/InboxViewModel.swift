@@ -7,6 +7,7 @@ final class InboxViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var hasLoaded = false
     @Published var selectedStatusFilter: InboxStatusFilter = .active
+    @Published var searchText = ""
     @Published var errorMessage: String?
 
     private let cardRepository: any CardRepository
@@ -27,11 +28,16 @@ final class InboxViewModel: ObservableObject {
     var filteredCards: [SavedInsightCard] {
         cards
             .filter(matchesStatusFilter)
+            .filter(matchesSearch)
             .sortedByCreatedDate()
     }
 
     var emptyStateTitle: String {
-        switch selectedStatusFilter {
+        if hasActiveSearch {
+            return "No matching insights"
+        }
+
+        return switch selectedStatusFilter {
         case .active:
             "No active insights"
         case .expired:
@@ -42,7 +48,11 @@ final class InboxViewModel: ObservableObject {
     }
 
     var emptyStateMessage: String {
-        switch selectedStatusFilter {
+        if hasActiveSearch {
+            return "Try a different search or clear the search field."
+        }
+
+        return switch selectedStatusFilter {
         case .active:
             "New saved insights and unfinished cards will appear here."
         case .expired:
@@ -50,6 +60,14 @@ final class InboxViewModel: ObservableObject {
         case .archived:
             "Archived insights will appear here after you move them out of the active inbox."
         }
+    }
+
+    private var normalizedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasActiveSearch: Bool {
+        !normalizedSearchText.isEmpty
     }
 
     func loadIfNeeded() async {
@@ -107,6 +125,15 @@ final class InboxViewModel: ObservableObject {
             card.status == .archived
         }
     }
+
+    private func matchesSearch(_ card: SavedInsightCard) -> Bool {
+        let query = normalizedSearchText
+        guard !query.isEmpty else {
+            return true
+        }
+
+        return card.searchableText.localizedCaseInsensitiveContains(query)
+    }
 }
 
 enum InboxStatusFilter: String, CaseIterable, Identifiable {
@@ -129,6 +156,18 @@ enum InboxStatusFilter: String, CaseIterable, Identifiable {
 }
 
 private extension SavedInsightCard {
+    var searchableText: String {
+        [
+            title,
+            insight.summary,
+            actionCard?.title,
+            insight.sections.map(\.title).joined(separator: " "),
+            insight.sections.map(\.content).joined(separator: " ")
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+    }
+
     func isExpired(relativeTo date: Date) -> Bool {
         guard let expirationDate else {
             return false

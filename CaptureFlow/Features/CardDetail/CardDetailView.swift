@@ -68,16 +68,7 @@ struct CardDetailView: View {
     @ViewBuilder
     private var content: some View {
         if viewModel.isLoading {
-            CFCardContainer {
-                HStack(spacing: CFSpacing.medium) {
-                    ProgressView()
-                        .tint(CFColors.primaryOrange)
-
-                    Text("Loading card")
-                        .font(CFTypography.callout)
-                        .foregroundStyle(CFColors.textSecondary)
-                }
-            }
+            CardDetailLoadingView()
         } else if let card = viewModel.card {
             header(card)
             sourceSection(card)
@@ -295,6 +286,151 @@ struct CardDetailView: View {
         }
     }
 
+}
+
+private struct CardDetailLoadingView: View {
+    @State private var pulse = false
+    @AppStorage(GenerationPreferences.Keys.enablesMotionEffects) private var enablesMotionEffects = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CFSpacing.large) {
+            loadingHero
+            titleSkeleton
+            sourceSkeleton
+            detailSkeleton
+        }
+        .task {
+            pulse = enablesMotionEffects
+        }
+    }
+
+    private var loadingHero: some View {
+        CFCardContainer {
+            HStack(spacing: CFSpacing.medium) {
+                ZStack {
+                    Circle()
+                        .fill(CFColors.primaryOrange.opacity(pulse ? 0.22 : 0.1))
+                        .frame(width: pulse ? 54 : 44, height: pulse ? 54 : 44)
+
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(CFColors.orangeHighlight)
+                }
+                .frame(width: 58, height: 58)
+                .animation(
+                    enablesMotionEffects ? .easeInOut(duration: 1.05).repeatForever(autoreverses: true) : nil,
+                    value: pulse
+                )
+
+                VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
+                    Text("Opening insight")
+                        .font(CFTypography.headline)
+                        .foregroundStyle(CFColors.textPrimary)
+
+                    Text("Preparing the saved details.")
+                        .font(CFTypography.callout)
+                        .foregroundStyle(CFColors.textSecondary)
+                }
+
+                Spacer(minLength: CFSpacing.medium)
+
+                ProgressView()
+                    .tint(CFColors.primaryOrange)
+            }
+        }
+    }
+
+    private var titleSkeleton: some View {
+        CFCardContainer {
+            VStack(alignment: .leading, spacing: CFSpacing.medium) {
+                skeletonLine(widthRatio: 0.2, height: 13, color: CFColors.orangeHighlight.opacity(0.32))
+                skeletonLine(widthRatio: 0.82, height: 28)
+                skeletonLine(widthRatio: 0.58, height: 28)
+            }
+        }
+    }
+
+    private var sourceSkeleton: some View {
+        CFCardContainer {
+            HStack(spacing: CFSpacing.medium) {
+                RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous)
+                    .fill(skeletonFill)
+                    .frame(width: 56, height: 56)
+
+                VStack(alignment: .leading, spacing: CFSpacing.small) {
+                    skeletonLine(widthRatio: 0.48, height: 20)
+                    skeletonLine(widthRatio: 0.38, height: 15)
+                    skeletonLine(widthRatio: 0.32, height: 13, color: CFColors.fieldSurface.opacity(0.72))
+                }
+
+                Spacer(minLength: CFSpacing.medium)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(CFColors.placeholderText.opacity(0.5))
+            }
+        }
+    }
+
+    private var detailSkeleton: some View {
+        CFCardContainer {
+            VStack(alignment: .leading, spacing: CFSpacing.large) {
+                HStack(spacing: CFSpacing.medium) {
+                    RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous)
+                        .fill(CFColors.success.opacity(0.72))
+                        .frame(width: 40, height: 40)
+
+                    skeletonLine(widthRatio: 0.46, height: 20)
+                }
+
+                VStack(alignment: .leading, spacing: CFSpacing.medium) {
+                    skeletonPill(widthRatio: 0.66)
+                    skeletonPill(widthRatio: 0.5)
+                    skeletonPill(widthRatio: 0.58)
+                    skeletonPill(widthRatio: 0.74)
+                }
+            }
+        }
+    }
+
+    private func skeletonPill(widthRatio: CGFloat) -> some View {
+        GeometryReader { proxy in
+            HStack(spacing: CFSpacing.medium) {
+                Image(systemName: "list.bullet.rectangle")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(CFColors.primaryOrange.opacity(0.8))
+
+                skeletonLine(widthRatio: 1, height: 17)
+            }
+            .padding(.horizontal, CFSpacing.medium)
+            .frame(width: max(proxy.size.width * widthRatio, 132), height: 43, alignment: .leading)
+            .background(CFColors.secondarySurface.opacity(0.64))
+            .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous))
+        }
+        .frame(height: 43)
+    }
+
+    private func skeletonLine(
+        widthRatio: CGFloat,
+        height: CGFloat,
+        color: Color? = nil
+    ) -> some View {
+        GeometryReader { proxy in
+            RoundedRectangle(cornerRadius: height / 2, style: .continuous)
+                .fill(color ?? skeletonFill)
+                .frame(width: max(proxy.size.width * widthRatio, height), height: height)
+                .opacity(pulse ? 0.78 : 0.48)
+                .animation(
+                    enablesMotionEffects ? .easeInOut(duration: 0.95).repeatForever(autoreverses: true) : nil,
+                    value: pulse
+                )
+        }
+        .frame(height: height)
+    }
+
+    private var skeletonFill: Color {
+        CFColors.fieldSurface.opacity(0.88)
+    }
 }
 
 @MainActor
