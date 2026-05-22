@@ -137,7 +137,7 @@ final class CardResultViewModel: ObservableObject {
             .first { $0.type == type }?
             .value
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nonEmpty
+            .captureFlowNonEmpty
     }
 
     var showsReminderAction: Bool {
@@ -383,29 +383,6 @@ enum CardResultCalendarActionState: Equatable, Sendable {
     }
 }
 
-private extension Date {
-    func combiningTime(from time: Date?) -> Date {
-        var calendar = Calendar.autoupdatingCurrent
-        calendar.timeZone = .autoupdatingCurrent
-
-        var dateComponents = calendar.dateComponents([.year, .month, .day], from: self)
-        let timeComponents = time.map {
-            calendar.dateComponents([.hour, .minute], from: $0)
-        }
-
-        dateComponents.hour = timeComponents?.hour ?? 9
-        dateComponents.minute = timeComponents?.minute ?? 0
-
-        return calendar.date(from: dateComponents) ?? self
-    }
-}
-
-private extension String {
-    var nonEmpty: String? {
-        isEmpty ? nil : self
-    }
-}
-
 private extension Error {
     var userFacingMessage: String {
         if let serviceError = self as? ServiceError {
@@ -413,22 +390,5 @@ private extension Error {
         }
 
         return String(describing: self)
-    }
-}
-
-private extension ServiceError {
-    var userFacingMessage: String {
-        switch self {
-        case .noImageProvided:
-            "No image data was provided."
-        case .unsupportedCardType(let cardType):
-            "Unsupported card type: \(cardType.rawValue)."
-        case .permissionDenied:
-            "Permission denied."
-        case .invalidGeneratedCard:
-            "The generated card was missing required fields."
-        case .unavailable(let message):
-            message
-        }
     }
 }

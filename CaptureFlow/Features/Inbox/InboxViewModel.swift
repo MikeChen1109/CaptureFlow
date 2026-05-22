@@ -7,11 +7,20 @@ final class InboxViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var hasLoaded = false
     @Published var selectedStatusFilter: InboxStatusFilter = .active
-    @Published var searchText = ""
+    @Published var searchText = "" {
+        didSet {
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                debouncedSearchText = ""
+            }
+        }
+    }
     @Published var errorMessage: String?
+
+    @Published private var debouncedSearchText = ""
 
     private let cardRepository: any CardRepository
     private let nowProvider: () -> Date
+    private var cancellables: Set<AnyCancellable> = []
 
     init(
         cardRepository: any CardRepository,
@@ -19,6 +28,7 @@ final class InboxViewModel: ObservableObject {
     ) {
         self.cardRepository = cardRepository
         self.nowProvider = nowProvider
+        bindSearchText()
     }
 
     convenience init(container: AppContainer) {
@@ -26,9 +36,14 @@ final class InboxViewModel: ObservableObject {
     }
 
     var filteredCards: [SavedInsightCard] {
-        cards
+        if hasActiveSearch {
+            return cards
+                .filter { matchesSearch($0, query: normalizedSearchText) }
+                .sortedByCreatedDate()
+        }
+
+        return cards
             .filter(matchesStatusFilter)
-            .filter(matchesSearch)
             .sortedByCreatedDate()
     }
 
@@ -63,11 +78,22 @@ final class InboxViewModel: ObservableObject {
     }
 
     private var normalizedSearchText: String {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        debouncedSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var hasActiveSearch: Bool {
         !normalizedSearchText.isEmpty
+    }
+
+    private func bindSearchText() {
+        $searchText
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .removeDuplicates()
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .sink { [weak self] searchText in
+                self?.debouncedSearchText = searchText
+            }
+            .store(in: &cancellables)
     }
 
     func loadIfNeeded() async {
@@ -126,12 +152,7 @@ final class InboxViewModel: ObservableObject {
         }
     }
 
-    private func matchesSearch(_ card: SavedInsightCard) -> Bool {
-        let query = normalizedSearchText
-        guard !query.isEmpty else {
-            return true
-        }
-
+    private func matchesSearch(_ card: SavedInsightCard, query: String) -> Bool {
         return card.searchableText.localizedCaseInsensitiveContains(query)
     }
 }
@@ -151,55 +172,6 @@ enum InboxStatusFilter: String, CaseIterable, Identifiable {
             "Expired"
         case .archived:
             "Archived"
-        }
-    }
-}
-
-private extension SavedInsightCard {
-    var searchableText: String {
-        [
-            title,
-            insight.summary,
-            actionCard?.title,
-            insight.sections.map(\.title).joined(separator: " "),
-            insight.sections.map(\.content).joined(separator: " ")
-        ]
-        .compactMap { $0 }
-        .joined(separator: " ")
-    }
-
-    func isExpired(relativeTo date: Date) -> Bool {
-        guard let expirationDate else {
-            return false
-        }
-
-        return expirationDate < date
-    }
-
-    var expirationDate: Date? {
-        switch actionCard {
-        case .calendar(let card):
-            card.endDate
-        case .reminder(let card):
-            card.dueDate
-        case .shopping(let card):
-            card.date
-        case .job(let card):
-            card.date
-        case .note, .none:
-            nil
-        }
-    }
-}
-
-private extension Array where Element == SavedInsightCard {
-    func sortedByCreatedDate() -> [SavedInsightCard] {
-        sorted { first, second in
-            if first.createdAt == second.createdAt {
-                return first.updatedAt > second.updatedAt
-            }
-
-            return first.createdAt > second.createdAt
         }
     }
 }

@@ -150,18 +150,3 @@ final class HomeViewModel: ObservableObject {
         cards = cards.recentlyCreated(limit: Self.recentCardLimit)
     }
 }
-
-private extension Array where Element == SavedInsightCard {
-    func recentlyCreated(limit: Int) -> [SavedInsightCard] {
-        Array(
-            sorted { first, second in
-                if first.createdAt == second.createdAt {
-                    return first.updatedAt > second.updatedAt
-                }
-
-                return first.createdAt > second.createdAt
-            }
-            .prefix(Swift.max(limit, 0))
-        )
-    }
-}
