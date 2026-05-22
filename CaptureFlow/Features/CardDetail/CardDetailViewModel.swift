@@ -65,6 +65,8 @@ final class CardDetailViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        try? await Task.sleep(for: .seconds(1.4))
+
         do {
             card = try await cardRepository.fetchCard(id: cardID)
             customFields = card?.customFields ?? []
