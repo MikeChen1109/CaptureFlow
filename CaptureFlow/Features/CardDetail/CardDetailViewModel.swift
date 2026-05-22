@@ -65,8 +65,6 @@ final class CardDetailViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        try? await Task.sleep(for: .seconds(1.4))
-
         do {
             card = try await cardRepository.fetchCard(id: cardID)
             customFields = card?.customFields ?? []
@@ -223,7 +221,7 @@ final class CardDetailViewModel: ObservableObject {
         return ReminderCreationRequest(
             sourceCardID: card.id,
             title: title,
-            notes: card.insight.summary?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            notes: card.insight.summary?.trimmingCharacters(in: .whitespacesAndNewlines).captureFlowNonEmpty
                 ?? card.insight.sections
                     .sorted { $0.priority < $1.priority }
                     .map(\.content)
@@ -277,13 +275,13 @@ final class CardDetailViewModel: ObservableObject {
             .first { $0.type == type }?
             .value
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nonEmpty
+            .captureFlowNonEmpty
     }
 
     private func notesWithCustomFields(baseNotes: String) -> String {
         var noteLines = baseNotes
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nonEmpty
+            .captureFlowNonEmpty
             .map { [$0] } ?? []
 
         let detailFields = customFields.filter { field in
@@ -332,28 +330,5 @@ final class CardDetailViewModel: ObservableObject {
         } catch {
             errorMessage = "Unable to save custom fields."
         }
-    }
-}
-
-private extension Date {
-    func combiningTime(from time: Date?) -> Date {
-        var calendar = Calendar.autoupdatingCurrent
-        calendar.timeZone = .autoupdatingCurrent
-
-        var dateComponents = calendar.dateComponents([.year, .month, .day], from: self)
-        let timeComponents = time.map {
-            calendar.dateComponents([.hour, .minute], from: $0)
-        }
-
-        dateComponents.hour = timeComponents?.hour ?? 9
-        dateComponents.minute = timeComponents?.minute ?? 0
-
-        return calendar.date(from: dateComponents) ?? self
-    }
-}
-
-private extension String {
-    var nonEmpty: String? {
-        isEmpty ? nil : self
     }
 }

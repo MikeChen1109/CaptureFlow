@@ -233,6 +233,25 @@ struct CardResultCustomFieldTests {
         #expect(fetchedCard?.customFields.map(\.value) == ["Taipei", "Bring portfolio"])
     }
 
+    @Test @MainActor func inboxSearchDebouncesAndSearchesAcrossStatusFilters() async throws {
+        let activeCard = savedInsightCard(title: "Active launch plan", status: .saved)
+        let archivedCard = savedInsightCard(title: "Vendor renewal contract", status: .archived)
+        let repository = InMemoryCardRepository(seedCards: [activeCard, archivedCard])
+        let viewModel = InboxViewModel(cardRepository: repository)
+
+        await viewModel.loadIfNeeded()
+        #expect(viewModel.filteredCards.map(\.id) == [activeCard.id])
+
+        viewModel.searchText = "vendor"
+        #expect(viewModel.filteredCards.map(\.id) == [activeCard.id])
+
+        try await Task.sleep(nanoseconds: 350_000_000)
+        #expect(viewModel.filteredCards.map(\.id) == [archivedCard.id])
+
+        viewModel.searchText = ""
+        #expect(viewModel.filteredCards.map(\.id) == [activeCard.id])
+    }
+
     @Test @MainActor func swiftDataCardRepositoryPersistsSavedCards() async throws {
         let repository = try swiftDataRepository()
         let customFields = [
@@ -368,6 +387,33 @@ struct CardResultCustomFieldTests {
             ),
             customFields: customFields,
             reminderExternalID: reminderExternalID
+        )
+    }
+
+    private func savedInsightCard(
+        title: String,
+        status: CardStatus,
+        createdAt: Date = .now
+    ) -> SavedInsightCard {
+        let metadata = CardMetadata(
+            createdAt: createdAt,
+            updatedAt: createdAt,
+            confidence: .medium,
+            confidenceScore: 0.78,
+            status: status
+        )
+        let insight = GeneratedInsightCard(
+            id: metadata.id,
+            title: title,
+            usefulness: .useful,
+            confidence: 0.78,
+            summary: "Search fixture for \(title).",
+            sections: []
+        )
+
+        return SavedInsightCard(
+            metadata: metadata,
+            insight: insight
         )
     }
 }
