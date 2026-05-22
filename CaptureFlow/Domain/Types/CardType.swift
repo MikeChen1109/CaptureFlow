@@ -1,6 +1,6 @@
 import Foundation
 
-enum CardType: String, Codable, CaseIterable, Identifiable, Sendable {
+enum CardType: String, nonisolated Codable, nonisolated Hashable, CaseIterable, Identifiable, Sendable {
     case auto
     case reminder
     case calendar

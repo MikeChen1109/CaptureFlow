@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import CaptureFlow
 
@@ -192,8 +193,156 @@ struct CardResultCustomFieldTests {
         #expect(!viewModel.canCreateReminder)
     }
 
-    private func noteSavedInsightCard(reminderExternalID: String? = nil) -> SavedInsightCard {
+    @Test @MainActor func cardResultViewModelPersistsCustomFieldsWhenSaving() async {
+        let repository = InMemoryCardRepository()
+        let cardID = UUID()
         let metadata = CardMetadata(
+            id: cardID,
+            confidence: .medium,
+            confidenceScore: 0.74
+        )
+        let viewModel = CardResultViewModel(
+            card: .note(
+                NoteCard(
+                    metadata: metadata,
+                    title: "Design meetup",
+                    summary: "Meetup details."
+                )
+            ),
+            cardRepository: repository,
+            reminderCreator: MockReminderCreator(),
+            calendarCreator: MockCalendarCreator()
+        )
+        let insight = GeneratedInsightCard(
+            id: cardID,
+            title: "Design meetup",
+            usefulness: .useful,
+            confidence: 0.74,
+            summary: "Meetup details.",
+            sections: []
+        )
+
+        viewModel.completeGeneration(card: viewModel.card, content: insight)
+        viewModel.addCustomField(type: .location, value: "Taipei")
+        viewModel.addCustomField(type: .note, value: "Bring portfolio")
+
+        let savedCard = await viewModel.save()
+        let fetchedCard = try? await repository.fetchCard(id: cardID)
+
+        #expect(savedCard?.customFields.map(\.value) == ["Taipei", "Bring portfolio"])
+        #expect(fetchedCard?.customFields.map(\.value) == ["Taipei", "Bring portfolio"])
+    }
+
+    @Test @MainActor func swiftDataCardRepositoryPersistsSavedCards() async throws {
+        let repository = try swiftDataRepository()
+        let customFields = [
+            CardResultCustomField(type: .location, value: "Taipei"),
+            CardResultCustomField(type: .note, value: "Bring portfolio")
+        ]
+        let card = noteSavedInsightCard(customFields: customFields)
+
+        let savedCard = try await repository.save(card)
+        let fetchedCard = try await repository.fetchCard(id: card.id)
+        let recentCards = try await repository.fetchRecentCards(limit: 1, includeArchived: false)
+
+        #expect(savedCard.status == .saved)
+        #expect(fetchedCard == savedCard)
+        #expect(recentCards == [savedCard])
+        #expect(fetchedCard?.customFields == customFields)
+    }
+
+    @Test func swiftDataCardRepositoryUpdatesArchivesAndDeletesCards() async throws {
+        let repository = try swiftDataRepository()
+        let card = noteSavedInsightCard()
+        _ = try await repository.save(card)
+
+        let completedCard = card.applyingReminderResult(
+            ExternalActionResult(
+                kind: .reminder,
+                externalID: "created-reminder-id",
+                displayName: "Created reminder"
+            )
+        )
+        let updatedCard = try await repository.update(completedCard)
+        let archivedCard = try await repository.archiveCard(id: card.id)
+        let visibleCards = try await repository.fetchCards(includeArchived: false)
+        let allCards = try await repository.fetchCards(includeArchived: true)
+
+        #expect(updatedCard.effectiveReminderExternalID == "created-reminder-id")
+        #expect(archivedCard.status == .archived)
+        #expect(visibleCards.isEmpty)
+        #expect(allCards.map(\.id) == [card.id])
+
+        try await repository.deleteCard(id: card.id)
+        #expect(try await repository.fetchCard(id: card.id) == nil)
+    }
+
+    @Test func sourceImageFileStoreSavesRelativePathAndResolvesIt() throws {
+        let baseDirectory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let store = try SourceImageFileStore(baseDirectory: baseDirectory)
+        let storedPath = try store.saveImageData(Data("image-data".utf8))
+        let resolvedPath = store.resolvedPath(for: storedPath)
+
+        #expect(storedPath.hasPrefix("SourceImages/"))
+        #expect(resolvedPath != nil)
+        #expect(FileManager.default.fileExists(atPath: resolvedPath ?? ""))
+    }
+
+    @Test func sourceImageFileStoreResolvesLegacyAbsolutePathByFilename() throws {
+        let baseDirectory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let store = try SourceImageFileStore(baseDirectory: baseDirectory)
+        let imageDirectory = baseDirectory.appendingPathComponent("SourceImages", isDirectory: true)
+        try FileManager.default.createDirectory(at: imageDirectory, withIntermediateDirectories: true)
+        let migratedURL = imageDirectory.appendingPathComponent("legacy-source.jpg")
+        try Data("image-data".utf8).write(to: migratedURL)
+
+        let legacyPath = "/private/var/mobile/Containers/Data/Application/OLD/Library/Application Support/CaptureFlow/SourceImages/legacy-source.jpg"
+
+        #expect(store.resolvedPath(for: legacyPath) == migratedURL.path)
+    }
+
+    @Test @MainActor func swiftDataCardRepositoryPreservesPhotoLibraryAssetIdentifier() async throws {
+        let repository = try swiftDataRepository()
+        let sourceImage = CardSourceImage(
+            source: .photoLibrary,
+            localPath: "SourceImages/source.jpg",
+            assetLocalIdentifier: "photos-asset-id"
+        )
+        let card = noteSavedInsightCard(sourceImage: sourceImage)
+
+        _ = try await repository.save(card)
+        let fetchedCard = try await repository.fetchCard(id: card.id)
+
+        #expect(fetchedCard?.sourceImage?.assetLocalIdentifier == "photos-asset-id")
+        #expect(fetchedCard?.sourceImage?.localPath == "SourceImages/source.jpg")
+    }
+
+    private func swiftDataRepository() throws -> SwiftDataCardRepository {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let modelContainer = try ModelContainer(
+            for: SwiftDataSavedInsightCard.self,
+            configurations: configuration
+        )
+
+        return SwiftDataCardRepository(modelContainer: modelContainer)
+    }
+
+    private func temporaryDirectory() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("CaptureFlowTests-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    private func noteSavedInsightCard(
+        reminderExternalID: String? = nil,
+        sourceImage: CardSourceImage? = nil,
+        customFields: [CardResultCustomField] = []
+    ) -> SavedInsightCard {
+        let metadata = CardMetadata(
+            sourceImage: sourceImage,
             confidence: .medium,
             confidenceScore: 0.78,
             status: reminderExternalID == nil ? .saved : .completed
@@ -217,6 +366,7 @@ struct CardResultCustomFieldTests {
                     summary: "Captured release checklist and launch owner details."
                 )
             ),
+            customFields: customFields,
             reminderExternalID: reminderExternalID
         )
     }

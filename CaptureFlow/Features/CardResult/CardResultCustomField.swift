@@ -1,7 +1,7 @@
 import Foundation
 import UIKit
 
-struct CardResultCustomField: Identifiable, Equatable, Sendable {
+struct CardResultCustomField: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     var id: UUID
     var type: CardResultCustomFieldType
     var value: String
@@ -22,7 +22,7 @@ struct RemovedCardResultCustomField: Equatable, Sendable {
     var originalIndex: Int
 }
 
-enum CardResultCustomFieldType: String, CaseIterable, Identifiable, Sendable {
+enum CardResultCustomFieldType: String, nonisolated Codable, nonisolated Hashable, CaseIterable, Identifiable, Sendable {
     case note
     case date
     case time

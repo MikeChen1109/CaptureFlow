@@ -1,6 +1,6 @@
 import Foundation
 
-enum ActionCard: Codable, Hashable, Identifiable, Sendable {
+enum ActionCard: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     case reminder(ReminderCard)
     case calendar(CalendarCard)
     case note(NoteCard)

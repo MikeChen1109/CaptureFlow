@@ -205,6 +205,10 @@ final class CardResultViewModel: ObservableObject {
                 value: trimmedValue
             )
         )
+
+        Task {
+            await persistCustomFieldsIfNeeded()
+        }
     }
 
     @discardableResult
@@ -214,12 +218,18 @@ final class CardResultViewModel: ObservableObject {
         }
 
         let field = customFields.remove(at: index)
+        Task {
+            await persistCustomFieldsIfNeeded()
+        }
         return RemovedCardResultCustomField(field: field, originalIndex: index)
     }
 
     func restoreCustomField(_ removed: RemovedCardResultCustomField) {
         let index = min(max(removed.originalIndex, 0), customFields.count)
         customFields.insert(removed.field, at: index)
+        Task {
+            await persistCustomFieldsIfNeeded()
+        }
     }
 
     func save() async -> SavedInsightCard? {
@@ -232,12 +242,14 @@ final class CardResultViewModel: ObservableObject {
                 throw ServiceError.invalidGeneratedCard
             }
 
-            let cardToSave = savedInsightCard ?? SavedInsightCard(
+            let cardToSave = (savedInsightCard ?? SavedInsightCard(
                 insight: generatedContent,
                 actionCard: card
-            )
+            ))
+            .updatingCustomFields(customFields)
             let savedCard = try await cardRepository.save(cardToSave)
             savedInsightCard = savedCard
+            customFields = savedCard.customFields
             if let actionCard = savedCard.actionCard {
                 card = actionCard
             }
@@ -321,8 +333,21 @@ final class CardResultViewModel: ObservableObject {
         guard didSave else { return }
         let updatedCard = try await cardRepository.update(card)
         savedInsightCard = updatedCard
+        customFields = updatedCard.customFields
         if let actionCard = updatedCard.actionCard {
             self.card = actionCard
+        }
+    }
+
+    private func persistCustomFieldsIfNeeded() async {
+        guard didSave, let savedInsightCard else { return }
+
+        do {
+            try await persistIfNeeded(savedInsightCard.updatingCustomFields(customFields))
+            actionMessage = nil
+            errorMessage = nil
+        } catch {
+            errorMessage = "Unable to save custom fields."
         }
     }
 }

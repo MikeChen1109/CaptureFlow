@@ -1,9 +1,10 @@
+import Photos
 import SwiftUI
 import UIKit
 
 struct CardDetailView: View {
     @StateObject private var viewModel: CardDetailViewModel
-    @State private var previewSourceImage: SourceImagePreview?
+    @State private var previewSourceImage: CardSourceImage?
     @State private var isPresentingDeleteConfirmation = false
     let onCardUpdated: (SavedInsightCard) -> Void
     let onCardDeleted: () -> Void
@@ -45,7 +46,7 @@ struct CardDetailView: View {
             await viewModel.load()
         }
         .sheet(item: $previewSourceImage) { preview in
-            SourceImagePreviewView(preview: preview)
+            SourceImagePreviewView(sourceImage: preview)
         }
         .confirmationDialog(
             "Delete this insight?",
@@ -147,7 +148,7 @@ struct CardDetailView: View {
 
                 Spacer()
 
-                if presentation.preview != nil {
+                if presentation.canOpenPreview {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(CFColors.placeholderText)
@@ -155,7 +156,8 @@ struct CardDetailView: View {
             }
             .contentShape(Rectangle())
             .onTapGesture {
-                previewSourceImage = presentation.preview
+                guard presentation.canOpenPreview else { return }
+                previewSourceImage = card.sourceImage
             }
         }
     }
@@ -302,26 +304,28 @@ private struct SourceImagePresentation {
     let hint: String
     let systemImage: String
     let preview: SourceImagePreview?
+    let canOpenPreview: Bool
 
     init(card: SavedInsightCard) {
         let sourceImage = card.sourceImage
         preview = sourceImage.flatMap(SourceImagePreview.init(sourceImage:))
+        canOpenPreview = sourceImage?.canAttemptPreview == true
 
         switch sourceImage?.source {
         case .photoLibrary:
             title = "Source Image"
             subtitle = "From Photos Library"
-            hint = preview == nil ? "Original preview unavailable" : "Tap to preview original"
+            hint = canOpenPreview ? "Tap to preview original" : "Original preview unavailable"
             systemImage = "photo.on.rectangle"
         case .camera:
             title = "Original Screenshot"
             subtitle = "Saved in CaptureFlow"
-            hint = preview == nil ? "Original preview unavailable" : "Tap to view"
+            hint = canOpenPreview ? "Tap to view" : "Original preview unavailable"
             systemImage = "camera.fill"
         case .shareExtension:
             title = "Source Image"
             subtitle = "Imported from Share Sheet"
-            hint = preview == nil ? "Original preview unavailable" : "Tap to preview original"
+            hint = canOpenPreview ? "Tap to preview original" : "Original preview unavailable"
             systemImage = "square.and.arrow.down.fill"
         case .mock, .none:
             title = "Source Image"
@@ -332,13 +336,29 @@ private struct SourceImagePresentation {
     }
 }
 
+private extension CardSourceImage {
+    var canAttemptPreview: Bool {
+        if SourceImagePreview(sourceImage: self) != nil {
+            return true
+        }
+
+        return source == .photoLibrary && assetLocalIdentifier != nil
+    }
+}
+
 private struct SourceImagePreview: Identifiable {
     let id: UUID
     let image: UIImage
     let title: String
 
+    init(id: UUID, image: UIImage, title: String) {
+        self.id = id
+        self.image = image
+        self.title = title
+    }
+
     init?(sourceImage: CardSourceImage) {
-        guard let localPath = sourceImage.localPath,
+        guard let localPath = try? SourceImageFileStore().resolvedPath(for: sourceImage.localPath),
               let image = UIImage(contentsOfFile: localPath)
         else {
             return nil
@@ -358,19 +378,34 @@ private struct SourceImagePreview: Identifiable {
 }
 
 private struct SourceImagePreviewView: View {
-    let preview: SourceImagePreview
+    let sourceImage: CardSourceImage
     @Environment(\.dismiss) private var dismiss
+    @State private var preview: SourceImagePreview?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             ZStack {
-                Image(uiImage: preview.image)
-                    .resizable()
-                    .scaledToFit()
+                if let preview {
+                    Image(uiImage: preview.image)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(CFSpacing.large)
+                } else if isLoading {
+                    ProgressView()
+                        .tint(CFColors.primaryOrange)
+                } else {
+                    CFEmptyStateView(
+                        title: "Original preview unavailable",
+                        message: errorMessage ?? "The source image may have been deleted from Photos.",
+                        systemImage: "photo.badge.exclamationmark"
+                    )
                     .padding(CFSpacing.large)
+                }
             }
             .captureFlowParticleBackground(count: 220)
-            .navigationTitle(preview.title)
+            .navigationTitle(preview?.title ?? sourceImage.previewTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -382,5 +417,84 @@ private struct SourceImagePreviewView: View {
             }
         }
         .presentationDetents([.large])
+        .task {
+            await loadPreview()
+        }
+    }
+
+    private func loadPreview() async {
+        isLoading = true
+        errorMessage = nil
+
+        if let localPreview = SourceImagePreview(sourceImage: sourceImage) {
+            preview = localPreview
+            isLoading = false
+            return
+        }
+
+        guard sourceImage.source == .photoLibrary,
+              let assetLocalIdentifier = sourceImage.assetLocalIdentifier
+        else {
+            errorMessage = "The saved source image file is no longer available."
+            isLoading = false
+            return
+        }
+
+        do {
+            let image = try await PhotoLibrarySourceImageLoader.image(assetLocalIdentifier: assetLocalIdentifier)
+            preview = SourceImagePreview(id: sourceImage.id, image: image, title: sourceImage.previewTitle)
+        } catch {
+            errorMessage = "The source photo is no longer available in Photos."
+        }
+
+        isLoading = false
+    }
+}
+
+@MainActor
+private enum PhotoLibrarySourceImageLoader {
+    static func image(assetLocalIdentifier: String) async throws -> UIImage {
+        let result = PHAsset.fetchAssets(
+            withLocalIdentifiers: [assetLocalIdentifier],
+            options: nil
+        )
+
+        guard let asset = result.firstObject else {
+            throw ServiceError.noImageProvided
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+            options.isSynchronous = false
+
+            PHImageManager.default().requestImageDataAndOrientation(
+                for: asset,
+                options: options
+            ) { data, _, _, _ in
+                guard let data,
+                      let image = UIImage(data: data)
+                else {
+                    continuation.resume(throwing: ServiceError.noImageProvided)
+                    return
+                }
+
+                continuation.resume(returning: image)
+            }
+        }
+    }
+}
+
+private extension CardSourceImage {
+    var previewTitle: String {
+        switch source {
+        case .camera:
+            "Original Screenshot"
+        case .photoLibrary, .shareExtension:
+            "Source Image"
+        case .mock:
+            "Sample Source"
+        }
     }
 }

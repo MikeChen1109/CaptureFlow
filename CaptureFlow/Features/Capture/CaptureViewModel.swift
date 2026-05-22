@@ -12,6 +12,8 @@ final class CaptureViewModel: ObservableObject {
     @Published private(set) var isLoadingImage = false
     @Published var errorMessage: String?
 
+    private let sourceImageFileStore = try? SourceImageFileStore()
+
     var canAnalyze: Bool {
         selectedImageData != nil
     }
@@ -48,7 +50,8 @@ final class CaptureViewModel: ObservableObject {
             selectedImage = Image(uiImage: uiImage)
             sourceImage = CardSourceImage(
                 source: .photoLibrary,
-                localPath: localPath
+                localPath: localPath,
+                assetLocalIdentifier: item.itemIdentifier
             )
         } catch {
             errorMessage = "Unable to import this image."
@@ -73,26 +76,10 @@ final class CaptureViewModel: ObservableObject {
     }
 
     private func persistSourceImageData(_ data: Data) throws -> String {
-        let fileManager = FileManager.default
-        let baseDirectory = try fileManager.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let imageDirectory = baseDirectory
-            .appendingPathComponent("CaptureFlow", isDirectory: true)
-            .appendingPathComponent("SourceImages", isDirectory: true)
+        guard let sourceImageFileStore else {
+            throw ServiceError.unavailable("Unable to prepare source image storage.")
+        }
 
-        try fileManager.createDirectory(
-            at: imageDirectory,
-            withIntermediateDirectories: true
-        )
-
-        let fileURL = imageDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("jpg")
-        try data.write(to: fileURL, options: .atomic)
-        return fileURL.path
+        return try sourceImageFileStore.saveImageData(data)
     }
 }

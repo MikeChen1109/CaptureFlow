@@ -1,9 +1,10 @@
 import Foundation
 
-struct SavedInsightCard: Codable, Hashable, Identifiable, Sendable {
+struct SavedInsightCard: nonisolated Codable, nonisolated Hashable, nonisolated Identifiable, Sendable {
     var metadata: CardMetadata
     var insight: GeneratedInsightCard
     var actionCard: ActionCard?
+    var customFields: [CardResultCustomField]
     var reminderExternalID: String?
     var calendarExternalID: String?
 
@@ -18,12 +19,14 @@ struct SavedInsightCard: Codable, Hashable, Identifiable, Sendable {
         metadata: CardMetadata,
         insight: GeneratedInsightCard,
         actionCard: ActionCard? = nil,
+        customFields: [CardResultCustomField] = [],
         reminderExternalID: String? = nil,
         calendarExternalID: String? = nil
     ) {
         self.metadata = metadata
         self.insight = insight
         self.actionCard = actionCard
+        self.customFields = customFields
         self.reminderExternalID = reminderExternalID
         self.calendarExternalID = calendarExternalID
     }
@@ -45,6 +48,7 @@ struct SavedInsightCard: Codable, Hashable, Identifiable, Sendable {
             ),
             insight: insight,
             actionCard: actionCard,
+            customFields: [],
             reminderExternalID: actionCard?.reminderExternalID,
             calendarExternalID: actionCard?.calendarExternalID
         )
@@ -100,6 +104,19 @@ struct SavedInsightCard: Codable, Hashable, Identifiable, Sendable {
         copy.metadata.status = status
         copy.metadata.updatedAt = updatedAt
         copy.actionCard = copy.actionCard?.updatingStatus(status, updatedAt: updatedAt)
+        return copy
+    }
+
+    nonisolated func updatingCustomFields(
+        _ customFields: [CardResultCustomField],
+        updatedAt: Date = .now
+    ) -> SavedInsightCard {
+        var copy = self
+        copy.customFields = customFields
+        copy.metadata.updatedAt = updatedAt
+        copy.actionCard = copy.actionCard?.updatingMetadata { metadata in
+            metadata.updatedAt = updatedAt
+        }
         return copy
     }
 

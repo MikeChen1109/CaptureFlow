@@ -1,13 +1,13 @@
 import Foundation
 
-enum InsightUsefulness: String, Codable, CaseIterable, Sendable {
+enum InsightUsefulness: String, nonisolated Codable, nonisolated Hashable, CaseIterable, Sendable {
     case useful
     case partiallyUseful
     case lowInformation
     case unclear
 }
 
-struct GeneratedInsightCard: Codable, Hashable, Identifiable, Sendable {
+struct GeneratedInsightCard: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     var id: UUID
     var title: String
     var usefulness: InsightUsefulness
@@ -32,7 +32,7 @@ struct GeneratedInsightCard: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
-struct InsightSection: Codable, Hashable, Identifiable, Sendable {
+struct InsightSection: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     var id: UUID
     var kind: InsightSectionKind
     var title: String
@@ -54,7 +54,7 @@ struct InsightSection: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
-enum InsightSectionKind: String, Codable, CaseIterable, Sendable {
+enum InsightSectionKind: String, nonisolated Codable, nonisolated Hashable, CaseIterable, Sendable {
     case summary
     case keyDetails
     case suggestedActions

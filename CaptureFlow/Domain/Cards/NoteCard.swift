@@ -1,6 +1,6 @@
 import Foundation
 
-struct NoteCard: Codable, Hashable, Identifiable, Sendable {
+struct NoteCard: nonisolated Codable, nonisolated Hashable, Identifiable, Sendable {
     var metadata: CardMetadata
     var title: String
     var summary: String

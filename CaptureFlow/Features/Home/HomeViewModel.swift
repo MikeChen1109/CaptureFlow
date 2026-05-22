@@ -3,6 +3,8 @@ import Combine
 
 @MainActor
 final class HomeViewModel: ObservableObject {
+    private static let recentCardLimit = 5
+
     @Published private(set) var cards: [SavedInsightCard] = []
     @Published private(set) var isLoading = false
     @Published private(set) var hasAttemptedInitialLoad = false
@@ -56,7 +58,8 @@ final class HomeViewModel: ObservableObject {
         actionMessage = nil
 
         do {
-            cards = try await cardRepository.fetchRecentCards(limit: 20)
+            cards = try await cardRepository.fetchCards(includeArchived: false)
+                .recentlyCreated(limit: Self.recentCardLimit)
             didCompleteInitialLoad = true
         } catch {
             errorMessage = "Unable to load inbox."
@@ -139,9 +142,26 @@ final class HomeViewModel: ObservableObject {
     private func replaceCard(_ card: SavedInsightCard) {
         guard let index = cards.firstIndex(where: { $0.id == card.id }) else {
             cards.insert(card, at: 0)
+            cards = cards.recentlyCreated(limit: Self.recentCardLimit)
             return
         }
 
         cards[index] = card
+        cards = cards.recentlyCreated(limit: Self.recentCardLimit)
+    }
+}
+
+private extension Array where Element == SavedInsightCard {
+    func recentlyCreated(limit: Int) -> [SavedInsightCard] {
+        Array(
+            sorted { first, second in
+                if first.createdAt == second.createdAt {
+                    return first.updatedAt > second.updatedAt
+                }
+
+                return first.createdAt > second.createdAt
+            }
+            .prefix(Swift.max(limit, 0))
+        )
     }
 }
