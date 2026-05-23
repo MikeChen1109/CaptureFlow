@@ -113,7 +113,7 @@ Keep this direction intact when adding production implementations. New storage, 
 
 Image analysis providers live behind `VisionAnalysisProviding`, and text generation providers live behind `LLMProviding`. `OpenAIVisionAnalysisProvider` is the first image-analysis provider implementation. `OpenAIResponsesLLMProvider` is the first generation provider implementation and owns HTTP, timeout, retry, response decoding, and provider error normalization.
 
-`AppContainer.local()` now composes the two LLM-backed paths separately:
+`AppContainer.local()` reads `AIProviderConfiguration.current()` once and uses it to compose both LLM-backed paths:
 
 - Vision model: `ProviderVisionAnalyzer` implements `VisionAnalyzing` and turns provider DTOs into `VisionUnderstandingContext`.
 - Generation model: `CardGeneratorRouter` implements `CardGenerating` and chooses the configured external LLM provider or Foundation Models for insight-card generation.
@@ -127,7 +127,14 @@ Feature code continues to depend on `CardGenerating`. `AppContainer` injects a `
 2. Foundation Model, using Apple Foundation Models only when iOS 26+ Foundation Models are available, which requires Apple Intelligence to be enabled.
 3. If Foundation Models are selected but unavailable, routing falls back to the external LLM provider.
 
-API keys are not collected in app UI; integrators inject a key source through `LLMProviderCredentialProviding` when composing `AppContainer`. Provider name and model names are composition-time configuration through `LLMProviderConfiguration`, not end-user settings. User defaults only store the generation route selection.
+API keys are not collected in app UI. OpenAI-backed vision analysis and external LLM generation share the same local configuration:
+
+```text
+CAPTUREFLOW_AI_PROVIDER=openai
+CAPTUREFLOW_OPENAI_API_KEY=your-api-key
+```
+
+These values can be supplied as Xcode scheme environment variables or in `CaptureFlow/Resources/LocalSecrets.plist`, which is ignored by git. Provider name and model names are composition-time configuration through `LLMProviderConfiguration`, not end-user settings. User defaults only store the generation route selection.
 
 Vision provider requests send image data. Generation provider requests are built from `VisionUnderstandingContext` and generation preferences.
 

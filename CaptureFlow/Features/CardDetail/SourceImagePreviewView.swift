@@ -148,38 +148,45 @@ struct SourceImagePreviewView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                if let preview {
-                    Image(uiImage: preview.image)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(CFSpacing.large)
-                } else if isLoading {
-                    ProgressView()
-                        .tint(CFColors.primaryOrange)
-                } else {
-                    CFEmptyStateView(
-                        title: "Original preview unavailable",
-                        message: errorMessage ?? "The source image may have been deleted from Photos.",
-                        systemImage: "photo.badge.exclamationmark"
-                    )
-                    .padding(CFSpacing.large)
-                }
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
+
+            if let preview {
+                ZoomableSourceImageView(image: preview.image)
+                    .ignoresSafeArea()
+            } else if isLoading {
+                ProgressView()
+                    .tint(CFColors.primaryOrange)
+            } else {
+                CFEmptyStateView(
+                    title: "Original preview unavailable",
+                    message: errorMessage ?? "The source image may have been deleted from Photos.",
+                    systemImage: "photo.badge.exclamationmark"
+                )
+                .padding(CFSpacing.large)
             }
-            .captureFlowParticleBackground(count: 220)
-            .navigationTitle(preview?.title ?? sourceImage.previewTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+
+            VStack {
+                HStack {
+                    Spacer()
+
                     Button("Done") {
                         dismiss()
                     }
+                    .font(CFTypography.callout.weight(.semibold))
                     .foregroundStyle(CFColors.orangeHighlight)
+                    .padding(.horizontal, CFSpacing.medium)
+                    .padding(.vertical, CFSpacing.small)
+                    .background(.ultraThinMaterial, in: Capsule())
                 }
+                .padding(.horizontal, CFSpacing.large)
+                .padding(.top, CFSpacing.small)
+
+                Spacer()
             }
         }
-        .presentationDetents([.large])
+        .statusBarHidden()
         .task {
             await loadPreview()
         }
@@ -211,6 +218,84 @@ struct SourceImagePreviewView: View {
         }
 
         isLoading = false
+    }
+}
+
+private struct ZoomableSourceImageView: UIViewRepresentable {
+    let image: UIImage
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.backgroundColor = .black
+        scrollView.delegate = context.coordinator
+        scrollView.minimumZoomScale = 1
+        scrollView.maximumZoomScale = 6
+        scrollView.bouncesZoom = true
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
+
+        let imageView = context.coordinator.imageView
+        imageView.image = image
+        imageView.contentMode = .scaleAspectFit
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(imageView)
+
+        NSLayoutConstraint.activate([
+            imageView.leadingAnchor.constraint(equalTo: scrollView.frameLayoutGuide.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: scrollView.frameLayoutGuide.trailingAnchor),
+            imageView.topAnchor.constraint(equalTo: scrollView.frameLayoutGuide.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: scrollView.frameLayoutGuide.bottomAnchor),
+            imageView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+            imageView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
+        ])
+
+        let doubleTap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.toggleZoom(_:))
+        )
+        doubleTap.numberOfTapsRequired = 2
+        scrollView.addGestureRecognizer(doubleTap)
+
+        return scrollView
+    }
+
+    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        context.coordinator.scrollView = scrollView
+        context.coordinator.imageView.image = image
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        let imageView = UIImageView()
+        weak var scrollView: UIScrollView?
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            imageView
+        }
+
+        @objc func toggleZoom(_ recognizer: UITapGestureRecognizer) {
+            guard let scrollView else { return }
+
+            if scrollView.zoomScale > scrollView.minimumZoomScale {
+                scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
+                return
+            }
+
+            let point = recognizer.location(in: imageView)
+            let zoomScale = min(scrollView.maximumZoomScale, 3)
+            let size = CGSize(
+                width: scrollView.bounds.width / zoomScale,
+                height: scrollView.bounds.height / zoomScale
+            )
+            let origin = CGPoint(
+                x: point.x - size.width / 2,
+                y: point.y - size.height / 2
+            )
+            scrollView.zoom(to: CGRect(origin: origin, size: size), animated: true)
+        }
     }
 }
 

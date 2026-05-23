@@ -150,8 +150,6 @@ extension GeneratedInsightCard {
 
     nonisolated var markdown: String {
         var lines = ["# \(title.trimmedForMarkdown)"]
-        lines.append("- **Usefulness:** \(usefulness.displayName)")
-        lines.append("- **Confidence:** \(Int((confidence.clamped(to: 0...1) * 100).rounded()))%")
 
         if let summary = summary?.trimmedForMarkdown, !summary.isEmpty {
             lines.append("")

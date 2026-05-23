@@ -84,6 +84,32 @@ extension JobCard: MarkdownExporting {
     }
 }
 
+extension String {
+    nonisolated func appendingMarkdownCustomFields(_ customFields: [CardResultCustomField]) -> String {
+        let lines = customFields.markdownLines
+        guard !lines.isEmpty else {
+            return self
+        }
+
+        return ([self, "", "## Custom Fields"] + lines).joined(separator: "\n")
+    }
+}
+
+private extension Array where Element == CardResultCustomField {
+    nonisolated var markdownLines: [String] {
+        map { field in
+            let label = field.type.displayName.trimmedForMarkdown
+            let value = field.value.trimmedForMarkdown
+            guard !label.isEmpty, !value.isEmpty else {
+                return nil
+            }
+
+            return "- **\(label):** \(value)"
+        }
+        .compactMap { $0 }
+    }
+}
+
 private struct MarkdownBuilder {
     private var lines: [String]
 
@@ -145,7 +171,7 @@ private struct MarkdownBuilder {
 }
 
 private extension String {
-    var trimmedForMarkdown: String {
+    nonisolated var trimmedForMarkdown: String {
         trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

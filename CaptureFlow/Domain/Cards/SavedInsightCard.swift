@@ -56,7 +56,7 @@ struct SavedInsightCard: nonisolated Codable, nonisolated Hashable, nonisolated 
     }
 
     nonisolated var markdown: String {
-        insight.markdown
+        insight.markdown.appendingMarkdownCustomFields(customFields)
     }
 
     nonisolated var reminderRequest: ReminderCreationRequest? {
