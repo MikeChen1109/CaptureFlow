@@ -7,30 +7,54 @@ struct AppContainer: Sendable {
     let reminderCreator: any ReminderCreating
     let calendarCreator: any CalendarCreating
     let cardRepository: any CardRepository
+    let providerSettingsStore: GenerationProviderSettingsStore
+    let llmConfiguration: LLMProviderConfiguration
 
     nonisolated init(
         visionAnalyzer: any VisionAnalyzing,
         cardGenerator: any CardGenerating,
         reminderCreator: any ReminderCreating,
         calendarCreator: any CalendarCreating,
-        cardRepository: any CardRepository
+        cardRepository: any CardRepository,
+        providerSettingsStore: GenerationProviderSettingsStore,
+        llmConfiguration: LLMProviderConfiguration = .openAIDefault
     ) {
         self.visionAnalyzer = visionAnalyzer
         self.cardGenerator = cardGenerator
         self.reminderCreator = reminderCreator
         self.calendarCreator = calendarCreator
         self.cardRepository = cardRepository
+        self.providerSettingsStore = providerSettingsStore
+        self.llmConfiguration = llmConfiguration
     }
 
-    static func local() -> AppContainer {
+    static func local(
+        credentialProvider: any LLMProviderCredentialProviding = StaticLLMProviderCredentialProvider(),
+        llmConfiguration: LLMProviderConfiguration = .openAIDefault,
+        promptProvider: any CardGenerationPromptProviding = DefaultCardGenerationPromptProvider()
+    ) -> AppContainer {
         let eventKitStore = EventKitActionStore()
+        let providerSettingsStore = GenerationProviderSettingsStore.shared
+        let openAIProvider = OpenAIResponsesLLMProvider(
+            credentialProvider: credentialProvider
+        )
 
         return AppContainer(
-            visionAnalyzer: MockVisionAnalyzer(),
-            cardGenerator: defaultCardGenerator(),
+            visionAnalyzer: OpenAIVisionAnalyzer(
+                provider: openAIProvider,
+                model: llmConfiguration.visionModel
+            ),
+            cardGenerator: defaultCardGenerator(
+                providerSettingsStore: providerSettingsStore,
+                externalLLMProvider: openAIProvider,
+                llmConfiguration: llmConfiguration,
+                promptProvider: promptProvider
+            ),
             reminderCreator: EventKitReminderCreator(store: eventKitStore),
             calendarCreator: EventKitCalendarCreator(store: eventKitStore),
-            cardRepository: defaultCardRepository()
+            cardRepository: defaultCardRepository(),
+            providerSettingsStore: providerSettingsStore,
+            llmConfiguration: llmConfiguration
         )
     }
 
@@ -44,13 +68,41 @@ struct AppContainer: Sendable {
         }
     }
 
-    private static func defaultCardGenerator() -> any CardGenerating {
+    private static func defaultCardGenerator(
+        providerSettingsStore: GenerationProviderSettingsStore,
+        externalLLMProvider: any LLMProviding,
+        llmConfiguration: LLMProviderConfiguration,
+        promptProvider: any CardGenerationPromptProviding
+    ) -> any CardGenerating {
+        let providerGenerator = OpenAIResponsesCardGenerator(
+            provider: externalLLMProvider,
+            model: llmConfiguration.generationModel,
+            promptProvider: promptProvider
+        )
+        let mockGenerator = MockCardGenerator()
+
+        return CardGeneratorRouter(
+            settingsStore: providerSettingsStore,
+            providerGenerator: providerGenerator,
+            foundationGenerator: defaultFoundationCardGenerator(
+                fallbackGenerator: providerGenerator,
+                promptProvider: promptProvider
+            ),
+            mockGenerator: mockGenerator
+        )
+    }
+
+    private static func defaultFoundationCardGenerator(
+        fallbackGenerator: any CardGenerating,
+        promptProvider: any CardGenerationPromptProviding
+    ) -> (any CardGenerating)? {
         if #available(iOS 26.0, *) {
             return AppleFoundationCardGenerator(
-                fallbackGenerator: MockCardGenerator()
+                promptProvider: promptProvider,
+                fallbackGenerator: fallbackGenerator
             )
         }
 
-        return MockCardGenerator()
+        return nil
     }
 }

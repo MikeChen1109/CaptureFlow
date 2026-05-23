@@ -1,6 +1,6 @@
 # Roadmap
 
-CaptureFlow is pre-release. This roadmap keeps the open-source direction explicit while preserving the current local-first app.
+CaptureFlow is a local-first open-source iOS tool. This roadmap tracks practical improvements for contributors and integrators.
 
 ## Near Term
 
@@ -9,11 +9,11 @@ CaptureFlow is pre-release. This roadmap keeps the open-source direction explici
 - Improve Markdown export coverage.
 - Expand mock analysis scenarios for screenshots, receipts, event flyers, shopping pages, and notes.
 - Document how generated insight sections map to supported action cards.
-- Wire settings into generation detail, tone, and motion behavior.
+- Improve generation prompt customization examples.
 
 ## Mid Term
 
-- Add configurable on-device analysis and generation options.
+- Improve Foundation Models support when available.
 - Add a share extension entry point.
 - Add import/export support for saved insights.
 - Improve accessibility across capture, review, and detail flows.
@@ -21,13 +21,4 @@ CaptureFlow is pre-release. This roadmap keeps the open-source direction explici
 
 ## Long Term
 
-- Evaluate optional cloud sync with a clear privacy model.
 - Support additional external actions through narrow service protocols.
-
-## Non-Goals
-
-- Firebase
-- Account login
-- Cloud sync
-- RevenueCat purchase flow
-- Network-only AI providers

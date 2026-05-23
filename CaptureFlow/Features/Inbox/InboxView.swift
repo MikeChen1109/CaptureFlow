@@ -211,7 +211,7 @@ private struct InboxStatusFilterBar: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(searchControlTint)
                     .frame(width: 60, height: 45)
-                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .cfGlassCapsule(tint: .clear)
                     .contentShape(.capsule)
                     .onTapGesture {
                         collapseSearch()
@@ -231,7 +231,7 @@ private struct InboxStatusFilterBar: View {
                         .padding(.horizontal, 15)
                         .frame(height: 45)
                         .background(backgroundTint(for: item), in: .capsule)
-                        .glassEffect(.regular.interactive(!isSearchExpanded), in: .capsule)
+                        .cfGlassCapsule(tint: .clear, isInteractive: !isSearchExpanded)
                         .contentShape(.capsule)
                 }
                 .buttonStyle(.plain)
@@ -269,7 +269,7 @@ private struct InboxStatusFilterBar: View {
             .padding(.trailing, isSearchExpanded ? 15 : 0)
             .frame(height: 45)
             .clipShape(.capsule)
-            .glassEffect(.regular.interactive(), in: .capsule)
+            .cfGlassCapsule(tint: .clear)
             .contentShape(.capsule)
             .onTapGesture {
                 guard !isSearchExpanded else {
@@ -287,7 +287,7 @@ private struct InboxStatusFilterBar: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(searchControlTint)
                 .frame(width: 45, height: 45)
-                .glassEffect(.regular.interactive(), in: .circle)
+                .cfGlassCircle(tint: .clear)
                 .contentShape(.circle)
                 .onTapGesture {
                     collapseSearch()

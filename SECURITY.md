@@ -1,6 +1,6 @@
 # Security Policy
 
-CaptureFlow is a local-first app and does not currently include a backend, account system, payment integration, or cloud sync.
+CaptureFlow is a local-first app. Security reports should focus on user content, local storage, external provider requests, and action creation flows.
 
 ## Supported Versions
 
@@ -21,5 +21,7 @@ The maintainer will confirm receipt, assess impact, and coordinate a fix before 
 
 - Captured images are intended to remain local.
 - EventKit access is limited to creating reminders and calendar events from user-approved actions.
-- No third-party network AI provider is connected.
-- Any future cloud, account, analytics, payment, or AI integration should document what data leaves the device.
+- Default provider-backed vision can send image data to the configured external LLM provider.
+- Default provider-backed analyze/generation can send screenshot-derived text context to the configured external LLM provider unless the user selects Apple Foundation Models on a supported iOS 26+ Apple Intelligence device.
+- OpenAI API keys are supplied by integrators outside the app UI and must not be committed or written to plaintext files.
+- Any new integration that sends user content off device should document what data is sent and why.

@@ -4,7 +4,7 @@ Thanks for taking the time to improve CaptureFlow.
 
 ## Project Direction
 
-CaptureFlow is currently a local-first iOS app. Contributions should keep the app useful without introducing production-only dependencies too early.
+CaptureFlow is a local-first open-source iOS tool. Contributions should keep the app easy to run, inspect, and adapt.
 
 Good contribution areas:
 
@@ -15,21 +15,14 @@ Good contribution areas:
 - Tests for card generation, custom fields, exports, and action state
 - Documentation that helps contributors understand the architecture
 
-Avoid adding these without an accepted design discussion:
-
-- Backend services
-- Account systems
-- Firebase
-- RevenueCat
-- Network-only AI providers
-- Cloud sync
+Discuss larger scope changes before implementing them, especially new service dependencies, persistence strategies, or data flows that send user content off device.
 
 ## Development
 
 Requirements:
 
 - Xcode 26.3 or newer
-- iOS 26 simulator SDK
+- iOS 18 simulator runtime or newer
 
 Build from the repository root:
 
@@ -40,7 +33,7 @@ xcodebuild -project CaptureFlow.xcodeproj -scheme CaptureFlow -destination 'gene
 Run tests:
 
 ```sh
-xcodebuild test -project CaptureFlow.xcodeproj -scheme CaptureFlow -destination 'platform=iOS Simulator,name=iPhone 17'
+xcodebuild test -project CaptureFlow.xcodeproj -scheme CaptureFlow -destination 'platform=iOS Simulator,name=iPhone 16 Pro Max,OS=18.6'
 ```
 
 If your local simulator name differs, replace the destination with an installed simulator.

@@ -1,6 +1,6 @@
 # Architecture
 
-CaptureFlow uses a single Swift module with feature-oriented folders and protocol-based service boundaries. The current app is intentionally local-first so the product flow can be validated before backend, account, payment, or cloud dependencies are added.
+CaptureFlow uses a single Swift module with feature-oriented folders and protocol-based service boundaries. The app is intentionally local-first and keeps external integrations behind small protocols.
 
 ## Layout
 
@@ -39,10 +39,12 @@ CaptureFlow/
     LaunchScreen.storyboard
 
   Services/
+    CardGeneration/
     EventKit/
     FoundationModels/
     Mock/
     Models/
+    Providers/
     Protocols/
 ```
 
@@ -58,7 +60,7 @@ CaptureFlow/
 : Reusable SwiftUI components, view modifiers, typography, spacing, color, and radius tokens.
 
 `Domain`
-: Pure app models and export logic. Domain files should stay independent from SwiftUI, UIKit, EventKit, Firebase, RevenueCat, OpenAI SDKs, and network SDKs.
+: Pure app models and export logic. Domain files should stay independent from SwiftUI, UIKit, EventKit, provider SDKs, and network SDKs.
 
 `Features`
 : Workflow-specific SwiftUI screens and view models. Feature code can compose domain models, repositories, services, and design system primitives.
@@ -67,20 +69,25 @@ CaptureFlow/
 : Asset catalogs, launch screen resources, and future local resource files.
 
 `Services`
-: External capability boundaries and implementations for analysis, generation, reminders, and calendars.
+: External capability boundaries and implementations for analysis, generation, provider-backed LLM requests, reminders, and calendars.
 
 ## Core Protocols
 
 - `VisionAnalyzing`
 - `CardGenerating`
+- `LLMProviding`
 - `CardRepository`
 - `ReminderCreating`
 - `CalendarCreating`
 
 ## Current Implementations
 
-- `MockVisionAnalyzer`
+- `OpenAIResponsesLLMProvider`
+- `OpenAIVisionAnalyzer` for the default Vision LLM path
+- `CardGeneratorRouter`
+- `OpenAIResponsesCardGenerator` for the OpenAI analyze/generation path
 - `AppleFoundationCardGenerator` on iOS 26+ when Foundation Models is available
+- `MockVisionAnalyzer` for tests and local fallback use
 - `MockCardGenerator` fallback
 - `InMemoryCardRepository`
 - `EventKitReminderCreator`
@@ -99,4 +106,30 @@ Data -> Domain
 DesignSystem -> SwiftUI only
 ```
 
-Keep this direction intact when adding production implementations. A new backend, storage system, or AI provider should be introduced behind an existing protocol or a small new protocol rather than being called directly from SwiftUI views.
+Keep this direction intact when adding production implementations. New storage, external actions, or AI providers should be introduced behind an existing protocol or a small new protocol rather than being called directly from SwiftUI views.
+
+## Provider-Based LLMs
+
+External LLM integrations live behind `LLMProviding`. `OpenAIResponsesLLMProvider` is the first implementation and owns HTTP, timeout, retry, response decoding, and provider error normalization. Future providers should implement `LLMProviding` and then be injected into the service that needs them.
+
+`AppContainer.local()` now composes the two LLM-backed paths separately:
+
+- Vision model: `OpenAIVisionAnalyzer` implements `VisionAnalyzing` and turns image data into `VisionUnderstandingContext`.
+- Generation model: `CardGeneratorRouter` implements `CardGenerating` and chooses the configured external LLM provider or Foundation Models for insight-card generation.
+- Prompt provider: `CardGenerationPromptProviding` owns reusable generation instructions and context formatting. The default implementation is `DefaultCardGenerationPromptProvider`; integrators can inject a custom provider at composition time.
+
+## Generation Routing
+
+Feature code continues to depend on `CardGenerating`. `AppContainer` injects a `CardGeneratorRouter` that resolves the active generator at request time:
+
+1. External LLM, using the configured provider through `LLMProviding`. The default implementation is OpenAI with `gpt-4.1-mini`.
+2. Foundation Model, using Apple Foundation Models only when iOS 26+ Foundation Models are available, which requires Apple Intelligence to be enabled.
+3. If Foundation Models are selected but unavailable, routing falls back to the external LLM provider.
+
+API keys are not collected in app UI; integrators inject a key source through `LLMProviderCredentialProviding` when composing `AppContainer`. Provider name and model names are composition-time configuration through `LLMProviderConfiguration`, not end-user settings. User defaults only store the generation route selection.
+
+Vision provider requests send image data. Generation provider requests are built from `VisionUnderstandingContext` and generation preferences.
+
+## Minimum Platform
+
+The app, unit tests, and UI tests target iOS 18.0. iOS 26-only UI such as Liquid Glass is accessed through shared compatibility modifiers in `DesignSystem/Modifiers`, so feature views do not call `glassEffect` directly.

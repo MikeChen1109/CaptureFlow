@@ -4,24 +4,20 @@
 
 # CaptureFlow
 
-CaptureFlow is a local-first iOS app for turning captured visual context into useful insight cards. A user can capture or import an image, analyze it, generate an editable insight, save it to a local inbox, and turn supported insights into Reminders or Calendar events.
-
-The project is being prepared as an open-source tool. It currently focuses on product flow, data boundaries, and UI feel rather than backend infrastructure.
+CaptureFlow is a local-first open-source iOS tool for turning captured visual context into useful insight cards. A user can capture or import an image, analyze it, generate an editable insight, save it locally, and turn supported insights into Reminders or Calendar events.
 
 ## Current Scope
 
 - SwiftUI app with a dark-mode-first interface
 - Image capture from camera or Photos
 - Local source-image persistence for newly imported images
-- Mock image understanding through `MockVisionAnalyzer`
+- Vision understanding through `VisionAnalyzing`, with OpenAI as the default provider-backed implementation
 - Insight generation through `CardGenerating`
-- Apple Foundation Models generation on iOS 26+ with mock fallback
+- Analysis/generation routing: external LLM by default, or Apple Foundation Models on iOS 26+ with Apple Intelligence enabled when selected
 - Saved insight inbox backed by `SavedInsightCard`
 - Detail view with generated sections, source image context, Markdown export, archive, and delete
 - EventKit-backed Reminder and Calendar creation
-- External action state tracking through stored Reminder and Calendar identifiers
-- Settings page for generated content and motion preferences
-- In-memory repository boundary for future persistent storage
+- Settings page for generation provider selection and local data reset
 
 ## Repository Layout
 
@@ -55,44 +51,43 @@ For more detail, see [Architecture](docs/ARCHITECTURE.md).
 9. Detail can create supported Reminder or Calendar actions.
 10. Created external action IDs are written back to the saved insight.
 
-## Architecture
-
-CaptureFlow uses lightweight MVVM with protocol-oriented service boundaries.
-
-Core protocols:
+## Service Boundaries
 
 - `VisionAnalyzing`
 - `CardGenerating`
+- `LLMProviding`
 - `CardRepository`
 - `ReminderCreating`
 - `CalendarCreating`
 
-Current implementations:
+LLM strategy:
 
-- `MockVisionAnalyzer`
-- `AppleFoundationCardGenerator` on iOS 26+ when Foundation Models is available
-- `MockCardGenerator` fallback
-- `InMemoryCardRepository`
-- `EventKitReminderCreator`
-- `EventKitCalendarCreator`
+1. `LLMProviding` is the provider extension point for external LLM vendors.
+2. `OpenAIResponsesLLMProvider` is the default provider implementation.
+3. Vision uses `OpenAIVisionAnalyzer` by default through `VisionAnalyzing`.
+4. Generation uses `CardGeneratorRouter` through `CardGenerating`.
+5. Generation defaults to the configured external LLM provider, with OpenAI and `gpt-4.1-mini` as the default configuration.
+6. Settings can switch generation to Apple Foundation Models only when iOS 26+ Foundation Models are available, which requires Apple Intelligence to be enabled.
+7. Generation prompts live behind `CardGenerationPromptProviding` so integrators can inject custom instructions and context formatting without changing generator implementations.
 
-Domain models should remain `Codable` and should not import SwiftUI, UIKit, EventKit, Firebase, RevenueCat, OpenAI SDKs, or network SDKs.
+API keys are not entered in the app UI. Integrators inject a key source through `LLMProviderCredentialProviding` when composing `AppContainer`. `LLMProviderConfiguration` controls provider display name plus default vision and generation model names.
 
 ## Requirements
 
 - Xcode 26.3 or newer
-- iOS 26 simulator SDK
+- iOS 18.0 minimum deployment target
+- iOS 18 simulator runtime or newer
 
 ## Build
 
 ```sh
-xcodebuild -project CaptureFlow.xcodeproj -scheme CaptureFlow -destination 'generic/platform=iOS Simulator' build
+xcodebuild -project CaptureFlow.xcodeproj -scheme CaptureFlow -destination 'generic/platform=iOS Simulator' IPHONEOS_DEPLOYMENT_TARGET=18.0 build
 ```
 
 Run tests:
 
 ```sh
-xcodebuild test -project CaptureFlow.xcodeproj -scheme CaptureFlow -destination 'platform=iOS Simulator,name=iPhone 17'
+xcodebuild test -project CaptureFlow.xcodeproj -scheme CaptureFlow -destination 'platform=iOS Simulator,name=iPhone 16 Pro Max,OS=18.6'
 ```
 
 If your simulator name differs, replace the destination with an installed simulator.
@@ -104,14 +99,3 @@ If your simulator name differs, replace the destination with an installed simula
 - Security policy: [SECURITY.md](SECURITY.md)
 - Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
 - License: [MIT](LICENSE)
-
-## Non-Goals
-
-Do not add these unless the project scope explicitly changes:
-
-- Firebase
-- OpenAI API
-- Real backend
-- Account login
-- Cloud sync
-- RevenueCat purchase flow
