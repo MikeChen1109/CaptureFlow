@@ -52,7 +52,11 @@ final class CardResultViewModel: ObservableObject {
     }
 
     var canCreateReminder: Bool {
-        switch card {
+        guard !isCreatingReminder, !didCreateReminder else {
+            return false
+        }
+
+        return switch card {
         case .reminder, .shopping, .job:
             true
         case .calendar, .note:
@@ -61,7 +65,7 @@ final class CardResultViewModel: ObservableObject {
     }
 
     var canCreateCalendar: Bool {
-        calendarActionState.request != nil
+        !isCreatingCalendar && !didCreateCalendar && calendarActionState.request != nil
     }
 
     var calendarActionState: CardResultCalendarActionState {
@@ -233,7 +237,15 @@ final class CardResultViewModel: ObservableObject {
     }
 
     func save() async -> SavedInsightCard? {
+        guard !isSaving else {
+            return nil
+        }
+
         isSaving = true
+        defer {
+            isSaving = false
+        }
+
         errorMessage = nil
         actionMessage = nil
 
@@ -257,11 +269,9 @@ final class CardResultViewModel: ObservableObject {
             actionMessage = "Saved to local inbox."
         } catch {
             errorMessage = "Unable to save this card."
-            isSaving = false
             return nil
         }
 
-        isSaving = false
         return savedInsightCard
     }
 
@@ -273,6 +283,10 @@ final class CardResultViewModel: ObservableObject {
     }
 
     func createReminder() async {
+        guard !isCreatingReminder, !didCreateReminder else {
+            return
+        }
+
         guard canCreateReminder,
               let request = card.reminderRequestForCardResult()
         else {
@@ -281,6 +295,10 @@ final class CardResultViewModel: ObservableObject {
         }
 
         isCreatingReminder = true
+        defer {
+            isCreatingReminder = false
+        }
+
         errorMessage = nil
         actionMessage = nil
 
@@ -295,17 +313,23 @@ final class CardResultViewModel: ObservableObject {
         } catch {
             errorMessage = "Unable to create reminder: \(error.userFacingMessage)"
         }
-
-        isCreatingReminder = false
     }
 
     func createCalendarEvent() async {
+        guard !isCreatingCalendar, !didCreateCalendar else {
+            return
+        }
+
         guard let request = calendarActionState.request else {
             errorMessage = calendarActionState.unavailableReason ?? "This card type does not support calendar events."
             return
         }
 
         isCreatingCalendar = true
+        defer {
+            isCreatingCalendar = false
+        }
+
         errorMessage = nil
         actionMessage = nil
 
@@ -320,8 +344,6 @@ final class CardResultViewModel: ObservableObject {
         } catch {
             errorMessage = "Unable to create calendar event: \(error.userFacingMessage)"
         }
-
-        isCreatingCalendar = false
     }
 
     private func syncSectionState() {

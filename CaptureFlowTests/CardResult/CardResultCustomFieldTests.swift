@@ -299,6 +299,63 @@ struct CardResultCustomFieldTests {
         #expect(fetchedCard?.customFields.map(\.value) == ["Taipei", "Bring portfolio"])
     }
 
+    @Test @MainActor func cardResultViewModelIgnoresRepeatedReminderCreation() async {
+        let reminderCreator = CountingReminderCreator()
+        let metadata = CardMetadata(
+            confidence: .medium,
+            confidenceScore: 0.74
+        )
+        let viewModel = CardResultViewModel(
+            card: .reminder(
+                ReminderCard(
+                    metadata: metadata,
+                    title: "Follow up",
+                    notes: "Send launch checklist"
+                )
+            ),
+            cardRepository: InMemoryCardRepository(),
+            reminderCreator: reminderCreator,
+            calendarCreator: MockCalendarCreator()
+        )
+
+        await viewModel.createReminder()
+        await viewModel.createReminder()
+
+        #expect(await reminderCreator.createCount == 1)
+        #expect(viewModel.didCreateReminder)
+        #expect(!viewModel.canCreateReminder)
+    }
+
+    @Test @MainActor func cardResultViewModelIgnoresRepeatedCalendarCreation() async {
+        let calendarCreator = CountingCalendarCreator()
+        let metadata = CardMetadata(
+            confidence: .medium,
+            confidenceScore: 0.74
+        )
+        let startDate = Date()
+        let viewModel = CardResultViewModel(
+            card: .calendar(
+                CalendarCard(
+                    metadata: metadata,
+                    title: "Launch review",
+                    startDate: startDate,
+                    endDate: startDate.addingTimeInterval(3_600),
+                    notes: "Review checklist"
+                )
+            ),
+            cardRepository: InMemoryCardRepository(),
+            reminderCreator: MockReminderCreator(),
+            calendarCreator: calendarCreator
+        )
+
+        await viewModel.createCalendarEvent()
+        await viewModel.createCalendarEvent()
+
+        #expect(await calendarCreator.createCount == 1)
+        #expect(viewModel.didCreateCalendar)
+        #expect(!viewModel.canCreateCalendar)
+    }
+
     @Test @MainActor func inboxSearchDebouncesAndSearchesAcrossStatusFilters() async throws {
         let activeCard = savedInsightCard(title: "Active launch plan", status: .saved)
         let archivedCard = savedInsightCard(title: "Vendor renewal contract", status: .archived)
@@ -480,6 +537,34 @@ struct CardResultCustomFieldTests {
         return SavedInsightCard(
             metadata: metadata,
             insight: insight
+        )
+    }
+}
+
+private actor CountingReminderCreator: ReminderCreating {
+    private(set) var createCount = 0
+
+    func createReminder(_ request: ReminderCreationRequest) async throws -> ExternalActionResult {
+        createCount += 1
+        return ExternalActionResult(
+            kind: .reminder,
+            sourceCardID: request.sourceCardID,
+            externalID: "counting-reminder-\(createCount)",
+            displayName: request.title
+        )
+    }
+}
+
+private actor CountingCalendarCreator: CalendarCreating {
+    private(set) var createCount = 0
+
+    func createCalendarEvent(_ request: CalendarCreationRequest) async throws -> ExternalActionResult {
+        createCount += 1
+        return ExternalActionResult(
+            kind: .calendar,
+            sourceCardID: request.sourceCardID,
+            externalID: "counting-calendar-\(createCount)",
+            displayName: request.title
         )
     }
 }
