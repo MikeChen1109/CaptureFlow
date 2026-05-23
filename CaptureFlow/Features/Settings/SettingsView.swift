@@ -10,9 +10,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CFSpacing.xLarge) {
-                header
-                outputSection
-                experienceSection
+                generationSection
                 dataSection
             }
             .padding(CFSpacing.large)
@@ -33,65 +31,44 @@ struct SettingsView: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: CFSpacing.small) {
-            Text("Settings")
-                .font(CFTypography.title)
-                .foregroundStyle(CFColors.textPrimary)
-
-            Text("Tune generated insights and app motion.")
-                .font(CFTypography.callout)
-                .foregroundStyle(CFColors.textSecondary)
-        }
-    }
-
-    private var outputSection: some View {
+    private var generationSection: some View {
         CFCardContainer {
             VStack(alignment: .leading, spacing: CFSpacing.large) {
-                sectionHeader("Generated Content", systemImage: "text.badge.star")
+                sectionHeader("Generation", systemImage: "cpu")
 
                 VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                    settingLabel("Detail")
+                    settingLabel("Generation Provider")
 
-                    Picker("Detail", selection: $viewModel.outputDetail) {
-                        ForEach(InsightOutputDetail.allCases) { detail in
-                            Text(detail.title).tag(detail)
+                    Picker("Generation Provider", selection: $viewModel.generationModelSelection) {
+                        ForEach(GenerationModelSelection.allCases) { model in
+                            Text(model.title).tag(model)
+                                .disabled(model == .foundationModels && !viewModel.isFoundationModelOptionEnabled)
                         }
                     }
                     .pickerStyle(.segmented)
-                }
 
-                VStack(alignment: .leading, spacing: CFSpacing.medium) {
-                    settingLabel("Tone")
+                    Text(viewModel.generationModelSelection.detail)
+                        .font(CFTypography.caption)
+                        .foregroundStyle(CFColors.textSecondary)
 
-                    Picker("Tone", selection: $viewModel.outputTone) {
-                        ForEach(InsightOutputTone.allCases) { tone in
-                            Text(tone.title).tag(tone)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-            }
-        }
-    }
-
-    private var experienceSection: some View {
-        CFCardContainer {
-            VStack(alignment: .leading, spacing: CFSpacing.large) {
-                sectionHeader("Experience", systemImage: "sparkles")
-
-                Toggle(isOn: $viewModel.enablesMotionEffects) {
-                    VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
-                        Text("Motion Effects")
-                            .font(CFTypography.callout.weight(.semibold))
-                            .foregroundStyle(CFColors.textPrimary)
-
-                        Text("Loading and reveal animations")
+                    if viewModel.generationModelSelection == .foundationModels {
+                        Text(viewModel.foundationModelRequirementText)
                             .font(CFTypography.caption)
-                            .foregroundStyle(CFColors.textSecondary)
+                            .foregroundStyle(
+                                viewModel.isFoundationModelOptionEnabled ? CFColors.textSecondary : CFColors.orangeHighlight
+                            )
                     }
                 }
-                .tint(CFColors.primaryOrange)
+
+                VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
+                    Text(viewModel.activeGenerationModeTitle)
+                        .font(CFTypography.callout.weight(.semibold))
+                        .foregroundStyle(CFColors.textPrimary)
+
+                    Text(viewModel.activeGenerationModeDetail)
+                        .font(CFTypography.caption)
+                        .foregroundStyle(CFColors.textSecondary)
+                }
             }
         }
     }

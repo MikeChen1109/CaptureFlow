@@ -85,7 +85,9 @@ struct ContentView: View {
                 case .settings:
                     SettingsView(
                         viewModel: SettingsViewModel(
-                            cardRepository: container.cardRepository
+                            cardRepository: container.cardRepository,
+                            providerSettingsStore: container.providerSettingsStore,
+                            externalLLMDisplayName: container.llmConfiguration.displayName
                         )
                     )
                 }

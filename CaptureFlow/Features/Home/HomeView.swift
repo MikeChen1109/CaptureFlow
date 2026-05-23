@@ -217,7 +217,7 @@ private struct HomeGlassActionBar<Content: View>: View {
                 }
                 .shadow(color: Color.black.opacity(0.32), radius: 16, x: 0, y: 10)
         }
-        .glassTreatment()
+        .cfGlassCapsule()
     }
 }
 
@@ -237,19 +237,5 @@ private struct HomeGlassActionButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func glassTreatment() -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffect(
-                .regular.tint(CFColors.secondarySurface.opacity(0.36)).interactive(),
-                in: Capsule(style: .continuous)
-            )
-        } else {
-            self
-        }
     }
 }
