@@ -82,18 +82,12 @@ struct HomeView: View {
 
             Spacer(minLength: CFSpacing.medium)
 
-            if showsHeaderCreateButton {
-                headerCreateButton
-                    .transition(.scale(scale: 0.84).combined(with: .opacity))
-            }
-
-            inboxButton
-            settingsButton
+            headerActions
         }
         .padding(.horizontal, CFSpacing.large)
         .padding(.top, CFSpacing.medium)
         .padding(.bottom, CFSpacing.large)
-        .background(CFColors.background.opacity(0.86))
+        .background(CFColors.background.opacity(0.68))
     }
 
     private var intro: some View {
@@ -115,51 +109,30 @@ struct HomeView: View {
         }
     }
 
-    private var settingsButton: some View {
-        Button(action: onOpenSettings) {
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(CFColors.textPrimary)
-                .frame(width: 32, height: 32)
-                .background(CFColors.secondarySurface)
-                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous)
-                        .stroke(CFColors.border, lineWidth: 1)
-                }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Settings")
-    }
+    private var headerActions: some View {
+        HomeGlassActionBar {
+            if showsHeaderCreateButton {
+                HomeGlassActionButton(
+                    systemImage: "plus",
+                    accessibilityLabel: "New Insight",
+                    action: onCreateCard
+                )
+                .transition(.scale(scale: 0.78).combined(with: .opacity))
+            }
 
-    private var inboxButton: some View {
-        Button(action: onOpenInbox) {
-            Image(systemName: "tray.full.fill")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(CFColors.textPrimary)
-                .frame(width: 32, height: 32)
-                .background(CFColors.secondarySurface)
-                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous)
-                        .stroke(CFColors.border, lineWidth: 1)
-                }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Inbox")
-    }
+            HomeGlassActionButton(
+                systemImage: "tray.full.fill",
+                accessibilityLabel: "Inbox",
+                action: onOpenInbox
+            )
 
-    private var headerCreateButton: some View {
-        Button(action: onCreateCard) {
-            Image(systemName: "plus")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(CFColors.background)
-                .frame(width: 32, height: 32)
-                .background(CFColors.primaryOrange)
-                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
+            HomeGlassActionButton(
+                systemImage: "gearshape.fill",
+                accessibilityLabel: "Settings",
+                action: onOpenSettings
+            )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("New Insight")
+        .animation(.easeInOut(duration: 0.2), value: showsHeaderCreateButton)
     }
 
     private var actionButtons: some View {
@@ -204,6 +177,79 @@ struct HomeView: View {
 
         withAnimation(.easeInOut(duration: 0.18)) {
             showsHeaderCreateButton = shouldShow
+        }
+    }
+}
+
+private struct HomeGlassActionBar<Content: View>: View {
+    let content: () -> Content
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            content()
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 48)
+        .background {
+            Capsule(style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.18),
+                                    Color.white.opacity(0.04)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .blendMode(.screen)
+                }
+                .overlay {
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                }
+                .shadow(color: Color.black.opacity(0.32), radius: 16, x: 0, y: 10)
+        }
+        .glassTreatment()
+    }
+}
+
+private struct HomeGlassActionButton: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(CFColors.textPrimary)
+                .frame(width: 38, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func glassTreatment() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(
+                .regular.tint(CFColors.secondarySurface.opacity(0.36)).interactive(),
+                in: Capsule(style: .continuous)
+            )
+        } else {
+            self
         }
     }
 }
