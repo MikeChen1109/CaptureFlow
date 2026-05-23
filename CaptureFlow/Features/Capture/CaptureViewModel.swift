@@ -26,7 +26,7 @@ final class CaptureViewModel: ObservableObject {
         return VisionAnalysisRequest(
             imageData: selectedImageData,
             sourceImage: sourceImage,
-            selectedCardType: .auto
+            selectedCardType: .unknown
         )
     }
 

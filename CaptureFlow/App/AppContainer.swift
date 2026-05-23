@@ -40,10 +40,7 @@ struct AppContainer: Sendable {
         )
 
         return AppContainer(
-            visionAnalyzer: OpenAIVisionAnalyzer(
-                provider: openAIProvider,
-                model: llmConfiguration.visionModel
-            ),
+            visionAnalyzer: defaultVisionAnalyzer(),
             cardGenerator: defaultCardGenerator(
                 providerSettingsStore: providerSettingsStore,
                 externalLLMProvider: openAIProvider,
@@ -65,6 +62,24 @@ struct AppContainer: Sendable {
         } catch {
             assertionFailure("Unable to initialize SwiftData card repository: \(error)")
             return InMemoryCardRepository()
+        }
+    }
+
+    private static func defaultVisionAnalyzer() -> any VisionAnalyzing {
+        let configuration = AIProviderConfiguration.current()
+
+        switch configuration.provider {
+        case .mock:
+            return MockVisionAnalyzer()
+        case .openAI:
+            guard configuration.openAI.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+                assertionFailure("CAPTUREFLOW_AI_PROVIDER is openai but no OpenAI API key is configured.")
+                return MockVisionAnalyzer()
+            }
+
+            return ProviderVisionAnalyzer(
+                provider: OpenAIVisionAnalysisProvider(configuration: configuration.openAI)
+            )
         }
     }
 

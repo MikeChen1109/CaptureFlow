@@ -74,6 +74,7 @@ CaptureFlow/
 ## Core Protocols
 
 - `VisionAnalyzing`
+- `VisionAnalysisProviding`
 - `CardGenerating`
 - `LLMProviding`
 - `CardRepository`
@@ -83,7 +84,7 @@ CaptureFlow/
 ## Current Implementations
 
 - `OpenAIResponsesLLMProvider`
-- `OpenAIVisionAnalyzer` for the default Vision LLM path
+- `ProviderVisionAnalyzer` and `OpenAIVisionAnalysisProvider` for the provider-backed Vision path
 - `CardGeneratorRouter`
 - `OpenAIResponsesCardGenerator` for the OpenAI analyze/generation path
 - `AppleFoundationCardGenerator` on iOS 26+ when Foundation Models is available
@@ -110,11 +111,11 @@ Keep this direction intact when adding production implementations. New storage, 
 
 ## Provider-Based LLMs
 
-External LLM integrations live behind `LLMProviding`. `OpenAIResponsesLLMProvider` is the first implementation and owns HTTP, timeout, retry, response decoding, and provider error normalization. Future providers should implement `LLMProviding` and then be injected into the service that needs them.
+Image analysis providers live behind `VisionAnalysisProviding`, and text generation providers live behind `LLMProviding`. `OpenAIVisionAnalysisProvider` is the first image-analysis provider implementation. `OpenAIResponsesLLMProvider` is the first generation provider implementation and owns HTTP, timeout, retry, response decoding, and provider error normalization.
 
 `AppContainer.local()` now composes the two LLM-backed paths separately:
 
-- Vision model: `OpenAIVisionAnalyzer` implements `VisionAnalyzing` and turns image data into `VisionUnderstandingContext`.
+- Vision model: `ProviderVisionAnalyzer` implements `VisionAnalyzing` and turns provider DTOs into `VisionUnderstandingContext`.
 - Generation model: `CardGeneratorRouter` implements `CardGenerating` and chooses the configured external LLM provider or Foundation Models for insight-card generation.
 - Prompt provider: `CardGenerationPromptProviding` owns reusable generation instructions and context formatting. The default implementation is `DefaultCardGenerationPromptProvider`; integrators can inject a custom provider at composition time.
 

@@ -110,7 +110,7 @@ struct CardRowView: View {
         switch card.actionCard?.type {
         case .reminder:
             "bell.badge.fill"
-        case .calendar:
+        case .event:
             "calendar.badge.clock"
         case .note:
             "text.alignleft"
@@ -118,22 +118,40 @@ struct CardRowView: View {
             "cart.fill"
         case .job:
             "briefcase.fill"
-        case .auto, .none:
+        case .travel:
+            "airplane"
+        case .food:
+            "fork.knife"
+        case .receipt:
+            "receipt.fill"
+        case .article:
+            "newspaper.fill"
+        case .product:
+            "shippingbox.fill"
+        case .contact:
+            "person.crop.circle.fill"
+        case .promotion:
+            "tag.fill"
+        case .document:
+            "doc.text.fill"
+        case .appScreen:
+            "app.fill"
+        case .unknown, .other, .none:
             "sparkles.rectangle.stack"
         }
     }
 
     private var iconTint: Color {
         switch card.actionCard?.type {
-        case .calendar:
+        case .event, .travel:
             CFColors.info
-        case .shopping:
+        case .shopping, .food, .receipt, .product, .promotion:
             CFColors.warning
         case .job:
             CFColors.success
-        case .note:
+        case .note, .article, .document, .appScreen, .contact:
             CFColors.textSecondary
-        case .reminder, .auto, .none:
+        case .reminder, .unknown, .other, .none:
             CFColors.primaryOrange
         }
     }

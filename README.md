@@ -54,6 +54,7 @@ For more detail, see [Architecture](docs/ARCHITECTURE.md).
 ## Service Boundaries
 
 - `VisionAnalyzing`
+- `VisionAnalysisProviding`
 - `CardGenerating`
 - `LLMProviding`
 - `CardRepository`
@@ -62,9 +63,9 @@ For more detail, see [Architecture](docs/ARCHITECTURE.md).
 
 LLM strategy:
 
-1. `LLMProviding` is the provider extension point for external LLM vendors.
-2. `OpenAIResponsesLLMProvider` is the default provider implementation.
-3. Vision uses `OpenAIVisionAnalyzer` by default through `VisionAnalyzing`.
+1. `VisionAnalysisProviding` is the provider extension point for image analysis.
+2. `LLMProviding` is the provider extension point for text generation.
+3. Vision uses `ProviderVisionAnalyzer` through `VisionAnalyzing`.
 4. Generation uses `CardGeneratorRouter` through `CardGenerating`.
 5. Generation defaults to the configured external LLM provider, with OpenAI and `gpt-4.1-mini` as the default configuration.
 6. Settings can switch generation to Apple Foundation Models only when iOS 26+ Foundation Models are available, which requires Apple Intelligence to be enabled.
