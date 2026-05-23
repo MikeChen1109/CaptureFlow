@@ -15,5 +15,5 @@ struct LLMProviderConfiguration: Sendable {
         self.generationModel = generationModel
     }
 
-    static let openAIDefault = LLMProviderConfiguration()
+    nonisolated static let openAIDefault = LLMProviderConfiguration()
 }
