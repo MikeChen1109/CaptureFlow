@@ -103,6 +103,23 @@ struct CardResultCustomFieldTests {
         #expect(resolver.validationMessage(for: .link, textValue: "   ") == "Enter a link to continue.")
     }
 
+    @Test func savedInsightCardMarkdownIncludesCustomFieldsWithoutUsefulnessOrConfidence() {
+        let card = noteSavedInsightCard(
+            customFields: [
+                CardResultCustomField(type: .location, value: "Taipei"),
+                CardResultCustomField(type: .note, value: "Bring portfolio")
+            ]
+        )
+
+        let markdown = card.markdown
+
+        #expect(!markdown.contains("**Usefulness:**"))
+        #expect(!markdown.contains("**Confidence:**"))
+        #expect(markdown.contains("## Custom Fields"))
+        #expect(markdown.contains("- **Location:** Taipei"))
+        #expect(markdown.contains("- **Note:** Bring portfolio"))
+    }
+
     @Test @MainActor func viewModelBuildsCalendarRequestFromCustomDateAndTimeFields() {
         let resolver = CardResultCustomFieldValueResolver()
         let calendar = Calendar.autoupdatingCurrent

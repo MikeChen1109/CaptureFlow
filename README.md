@@ -71,7 +71,14 @@ LLM strategy:
 6. Settings can switch generation to Apple Foundation Models only when iOS 26+ Foundation Models are available, which requires Apple Intelligence to be enabled.
 7. Generation prompts live behind `CardGenerationPromptProviding` so integrators can inject custom instructions and context formatting without changing generator implementations.
 
-API keys are not entered in the app UI. Integrators inject a key source through `LLMProviderCredentialProviding` when composing `AppContainer`. `LLMProviderConfiguration` controls provider display name plus default vision and generation model names.
+API keys are not entered in the app UI. Configure OpenAI-backed analysis and generation with the same local settings:
+
+```text
+CAPTUREFLOW_AI_PROVIDER=openai
+CAPTUREFLOW_OPENAI_API_KEY=your-api-key
+```
+
+These values can be supplied as Xcode scheme environment variables or in `CaptureFlow/Resources/LocalSecrets.plist`, which is ignored by git. `LLMProviderConfiguration` controls provider display name plus default vision and generation model names.
 
 ## Requirements
 

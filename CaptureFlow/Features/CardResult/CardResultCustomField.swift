@@ -33,7 +33,7 @@ enum CardResultCustomFieldType: String, nonisolated Codable, nonisolated Hashabl
 
     var id: String { rawValue }
 
-    var displayName: String {
+    nonisolated var displayName: String {
         switch self {
         case .note:
             "Note"

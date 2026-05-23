@@ -29,18 +29,21 @@ struct AppContainer: Sendable {
     }
 
     static func local(
-        credentialProvider: any LLMProviderCredentialProviding = StaticLLMProviderCredentialProvider(),
+        aiProviderConfiguration: AIProviderConfiguration = .current(),
+        credentialProvider: (any LLMProviderCredentialProviding)? = nil,
         llmConfiguration: LLMProviderConfiguration = .openAIDefault,
         promptProvider: any CardGenerationPromptProviding = DefaultCardGenerationPromptProvider()
     ) -> AppContainer {
         let eventKitStore = EventKitActionStore()
         let providerSettingsStore = GenerationProviderSettingsStore.shared
+        let credentialProvider = credentialProvider ?? aiProviderConfiguration
         let openAIProvider = OpenAIResponsesLLMProvider(
-            credentialProvider: credentialProvider
+            credentialProvider: credentialProvider,
+            endpoint: aiProviderConfiguration.openAI.responsesURL
         )
 
         return AppContainer(
-            visionAnalyzer: defaultVisionAnalyzer(),
+            visionAnalyzer: defaultVisionAnalyzer(configuration: aiProviderConfiguration),
             cardGenerator: defaultCardGenerator(
                 providerSettingsStore: providerSettingsStore,
                 externalLLMProvider: openAIProvider,
@@ -65,9 +68,7 @@ struct AppContainer: Sendable {
         }
     }
 
-    private static func defaultVisionAnalyzer() -> any VisionAnalyzing {
-        let configuration = AIProviderConfiguration.current()
-
+    private static func defaultVisionAnalyzer(configuration: AIProviderConfiguration) -> any VisionAnalyzing {
         switch configuration.provider {
         case .mock:
             return MockVisionAnalyzer()

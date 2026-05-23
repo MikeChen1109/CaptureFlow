@@ -276,7 +276,8 @@ final class CardResultViewModel: ObservableObject {
     }
 
     func copyMarkdown() {
-        UIPasteboard.general.string = generatedContent?.markdown ?? card.markdown
+        UIPasteboard.general.string = (generatedContent?.markdown ?? card.markdown)
+            .appendingMarkdownCustomFields(customFields)
         didCopyMarkdown = true
         actionMessage = "Markdown copied."
         errorMessage = nil

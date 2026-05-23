@@ -43,7 +43,7 @@ struct CardDetailView: View {
         .task {
             await viewModel.load()
         }
-        .sheet(item: $previewSourceImage) { preview in
+        .fullScreenCover(item: $previewSourceImage) { preview in
             SourceImagePreviewView(sourceImage: preview)
         }
         .confirmationDialog(

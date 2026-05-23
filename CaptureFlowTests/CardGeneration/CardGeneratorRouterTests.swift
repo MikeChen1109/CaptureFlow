@@ -73,6 +73,18 @@ struct CardGeneratorRouterTests {
         #expect((error as? ServiceError) == .unavailable("Unsupported model."))
     }
 
+    @Test func aiProviderConfigurationProvidesOpenAIKeyForGeneration() throws {
+        let configuration = AIProviderConfiguration.current(
+            environment: [
+                "CAPTUREFLOW_AI_PROVIDER": "openai",
+                "CAPTUREFLOW_OPENAI_API_KEY": " test-api-key "
+            ]
+        )
+
+        #expect(configuration.provider == .openAI)
+        #expect(try configuration.apiKey(for: .openAI) == "test-api-key")
+    }
+
     private func makeRouter(
         store: GenerationProviderSettingsStore,
         provider: any CardGenerating,

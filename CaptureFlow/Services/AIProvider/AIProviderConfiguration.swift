@@ -41,6 +41,17 @@ struct AIProviderConfiguration: Sendable {
     }
 }
 
+extension AIProviderConfiguration: LLMProviderCredentialProviding {
+    func apiKey(for providerID: LLMProviderID) throws -> String? {
+        switch providerID {
+        case .openAI:
+            openAI.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        default:
+            nil
+        }
+    }
+}
+
 struct OpenAIConfiguration: Sendable {
     static let defaultPromptID = "pmpt_6a100bf25620819692356a4e45c3a7ec0d46de4235da0642"
     static let defaultPromptVersion = "2"
