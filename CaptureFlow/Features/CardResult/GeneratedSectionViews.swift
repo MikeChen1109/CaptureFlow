@@ -113,19 +113,12 @@ private struct KeyValueContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CFSpacing.small) {
             ForEach(text.detailItems, id: \.self) { line in
-                HStack(alignment: .center, spacing: CFSpacing.medium) {
-                    Image(systemName: "list.bullet.rectangle")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(CFColors.orangeHighlight)
-                        .frame(width: 22, height: 22, alignment: .center)
-
-                    Text(line)
-                        .font(CFTypography.callout)
-                        .foregroundStyle(CFColors.textPrimary)
-                        .frame(minHeight: 22, alignment: .center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                }
+                Text(line)
+                    .font(CFTypography.callout)
+                    .foregroundStyle(CFColors.textPrimary)
+                    .frame(minHeight: 22, alignment: .center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
                 .padding(.horizontal, CFSpacing.medium)
                 .padding(.vertical, CFSpacing.small)
                 .background(CFColors.elevatedSurface)
