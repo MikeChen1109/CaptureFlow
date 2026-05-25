@@ -275,8 +275,6 @@ private extension Character {
         switch self {
         case "|", ";", "•":
             true
-        case ",":
-            !(previous?.isNumber == true && next?.isNumber == true)
         default:
             false
         }

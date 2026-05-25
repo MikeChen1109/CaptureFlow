@@ -16,6 +16,7 @@ struct VisionAnalysisDTO: Codable, Hashable, Sendable {
     var recommendedPlanTitle: String
     var confidenceScore: Double
     var evidence: [String]
+    var textBlocks: [VisionTextBlockDTO]
 
     init(
         resolvedCardType: CardType? = nil,
@@ -32,7 +33,8 @@ struct VisionAnalysisDTO: Codable, Hashable, Sendable {
         missingInfo: [String] = [],
         recommendedPlanTitle: String = "",
         confidenceScore: Double,
-        evidence: [String] = []
+        evidence: [String] = [],
+        textBlocks: [VisionTextBlockDTO] = []
     ) {
         self.resolvedCardType = resolvedCardType
         self.cardType = cardType
@@ -49,6 +51,7 @@ struct VisionAnalysisDTO: Codable, Hashable, Sendable {
         self.recommendedPlanTitle = recommendedPlanTitle
         self.confidenceScore = confidenceScore
         self.evidence = evidence
+        self.textBlocks = textBlocks
     }
 }
 
@@ -107,7 +110,8 @@ extension VisionAnalysisDTO {
             missingInfo: missingInfo,
             recommendedPlanTitle: recommendedPlanTitle.nonEmpty(or: "Recommended Plan"),
             confidenceScore: confidenceScore.clamped(to: 0...1),
-            evidence: evidence
+            evidence: evidence,
+            textBlocks: textBlocks.map { $0.toDomain() }
         )
     }
 }

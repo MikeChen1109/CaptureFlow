@@ -7,14 +7,17 @@ struct OpenAIVisionAnalysisProvider: VisionAnalysisProviding {
     private let urlSession: URLSession
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let promptProvider: any VisionAnalysisPromptProviding
 
     init(
         configuration: OpenAIConfiguration,
-        urlSession: URLSession = .shared
+        urlSession: URLSession = .shared,
+        promptProvider: any VisionAnalysisPromptProviding = DefaultVisionAnalysisPromptProvider()
     ) {
         self.configuration = configuration
         self.urlSession = urlSession
         self.encoder = JSONEncoder()
+        self.promptProvider = promptProvider
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -52,20 +55,43 @@ struct OpenAIVisionAnalysisProvider: VisionAnalysisProviding {
     }
 
     private func openAIRequest(from request: VisionProviderAnalysisRequest) -> OpenAIResponsesRequestDTO {
-        OpenAIResponsesRequestDTO(
-            prompt: OpenAIResponsesRequestDTO.Prompt(
-                id: configuration.promptID,
-                version: configuration.promptVersion
+        let prompt = promptProvider.prompt(
+            for: VisionAnalysisPromptRequest(requestedCardType: request.selectedCardType)
+        )
+        let promptConfiguration = openAIPromptConfiguration
+
+        return OpenAIResponsesRequestDTO(
+            model: promptConfiguration == nil ? configuration.visionModel : nil,
+            instructions: promptConfiguration == nil ? prompt.developerMessage : nil,
+            prompt: promptConfiguration,
+            text: OpenAIResponsesRequestDTO.Text(
+                format: OpenAIResponsesRequestDTO.Text.Format(
+                    name: VisionAnalysisResponseSchema.name,
+                    schema: VisionAnalysisResponseSchema.schema
+                )
             ),
             input: [
                 OpenAIResponsesRequestDTO.InputMessage(
                     role: "user",
                     content: [
-                        .inputText(Self.analysisInstructions(selectedCardType: request.selectedCardType)),
+                        .inputText(prompt.userMessage),
                         .inputImage(imageURL: dataURL(from: request.imageData))
                     ]
                 )
             ]
+        )
+    }
+
+    private var openAIPromptConfiguration: OpenAIResponsesRequestDTO.Prompt? {
+        guard let promptID = configuration.promptID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !promptID.isEmpty
+        else {
+            return nil
+        }
+
+        return OpenAIResponsesRequestDTO.Prompt(
+            id: promptID,
+            version: configuration.promptVersion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         )
     }
 
@@ -94,31 +120,6 @@ struct OpenAIVisionAnalysisProvider: VisionAnalysisProviding {
         }
 
         return "OpenAI request failed with status \(statusCode): \(message)"
-    }
-
-    private static func analysisInstructions(selectedCardType: CardType) -> String {
-        """
-        Analyze this image for CaptureFlow.
-        Selected card type: \(selectedCardType.rawValue).
-        Return only a JSON object matching this shape:
-        {
-          "resolved_card_type": "unknown|shopping|event|note|job|travel|food|receipt|article|product|reminder|contact|promotion|document|appScreen|other",
-          "scene_title": "short title",
-          "scene_summary": "summary based only on visible evidence",
-          "user_intent_guess": "likely intent, if any",
-          "visible_text": ["text found in the image"],
-          "visual_objects": ["objects visible in the image"],
-          "layout_description": "brief layout",
-          "entities": [{"type":"product|price|promotion|store|date|time|location|company|role|skill|url|contact|note|event|unknown","label":"Label","value":"Value","confidence":0.0}],
-          "possible_actions": [{"title":"Action","description":"Why","action_type":"save|reminder|calendar|copy|share|compare|followUp|custom"}],
-          "constraints": ["uncertainties"],
-          "missing_info": ["important missing info"],
-          "recommended_plan_title": "plan title",
-          "confidence_score": 0.0,
-          "evidence": ["specific visible evidence"]
-        }
-        Do not include source image paths, file names, device paths, or local asset identifiers.
-        """
     }
 
     private static func mimeType(for data: Data) -> String {
@@ -173,12 +174,41 @@ struct OpenAIVisionAnalysisProvider: VisionAnalysisProviding {
 }
 
 private struct OpenAIResponsesRequestDTO: Encodable {
-    var prompt: Prompt
+    var model: String?
+    var instructions: String?
+    var prompt: Prompt?
+    var text: Text?
     var input: [InputMessage]
 
     struct Prompt: Encodable {
         var id: String
-        var version: String
+        var version: String?
+    }
+
+    struct Text: Encodable {
+        var format: Format
+
+        struct Format: Encodable {
+            var type = "json_schema"
+            var name: String
+            var strict = true
+            var schema: [String: Sendable]
+
+            enum CodingKeys: String, CodingKey {
+                case type
+                case name
+                case strict
+                case schema
+            }
+
+            func encode(to encoder: any Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(type, forKey: .type)
+                try container.encode(name, forKey: .name)
+                try container.encode(strict, forKey: .strict)
+                try container.encode(JSONObject(schema), forKey: .schema)
+            }
+        }
     }
 
     struct InputMessage: Encodable {
@@ -208,6 +238,63 @@ private struct OpenAIResponsesRequestDTO: Encodable {
             case text
             case imageURL = "image_url"
         }
+    }
+}
+
+private struct JSONObject: Encodable {
+    var value: Any
+
+    init(_ value: Any) {
+        self.value = value
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        switch value {
+        case let dictionary as [String: Any]:
+            var container = encoder.container(keyedBy: DynamicCodingKey.self)
+            for (key, value) in dictionary {
+                try container.encode(JSONObject(value), forKey: DynamicCodingKey(stringValue: key))
+            }
+        case let array as [Any]:
+            var container = encoder.unkeyedContainer()
+            for value in array {
+                try container.encode(JSONObject(value))
+            }
+        case let string as String:
+            var container = encoder.singleValueContainer()
+            try container.encode(string)
+        case let int as Int:
+            var container = encoder.singleValueContainer()
+            try container.encode(int)
+        case let double as Double:
+            var container = encoder.singleValueContainer()
+            try container.encode(double)
+        case let bool as Bool:
+            var container = encoder.singleValueContainer()
+            try container.encode(bool)
+        default:
+            throw EncodingError.invalidValue(
+                value,
+                EncodingError.Context(
+                    codingPath: encoder.codingPath,
+                    debugDescription: "Unsupported JSON schema value."
+                )
+            )
+        }
+    }
+}
+
+private struct DynamicCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+
+    init(stringValue: String) {
+        self.stringValue = stringValue
+    }
+
+    init(intValue: Int) {
+        self.stringValue = "\(intValue)"
+        self.intValue = intValue
     }
 }
 
@@ -256,5 +343,9 @@ private extension String {
     var nonEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var nilIfEmpty: String? {
+        nonEmpty
     }
 }

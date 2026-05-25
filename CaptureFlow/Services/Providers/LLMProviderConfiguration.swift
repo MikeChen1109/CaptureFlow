@@ -8,7 +8,7 @@ struct LLMProviderConfiguration: Sendable {
     init(
         displayName: String = "OpenAI",
         visionModel: String = "gpt-4.1-mini",
-        generationModel: String = "gpt-4.1-mini"
+        generationModel: String = "gpt-4.1"
     ) {
         self.displayName = displayName
         self.visionModel = visionModel

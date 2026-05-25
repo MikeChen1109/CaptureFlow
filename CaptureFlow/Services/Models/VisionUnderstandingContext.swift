@@ -18,6 +18,7 @@ struct VisionUnderstandingContext: Codable, Hashable, Identifiable, Sendable {
     var recommendedPlanTitle: String
     var confidenceScore: Double
     var evidence: [String]
+    var textBlocks: [VisionTextBlock]
 
     var confidence: ConfidenceLevel {
         ConfidenceLevel.from(score: confidenceScore)
@@ -40,7 +41,8 @@ struct VisionUnderstandingContext: Codable, Hashable, Identifiable, Sendable {
         missingInfo: [String] = [],
         recommendedPlanTitle: String,
         confidenceScore: Double,
-        evidence: [String] = []
+        evidence: [String] = [],
+        textBlocks: [VisionTextBlock] = []
     ) {
         self.id = id
         self.requestedCardType = requestedCardType
@@ -59,6 +61,7 @@ struct VisionUnderstandingContext: Codable, Hashable, Identifiable, Sendable {
         self.recommendedPlanTitle = recommendedPlanTitle
         self.confidenceScore = confidenceScore
         self.evidence = evidence
+        self.textBlocks = textBlocks
     }
 }
 
@@ -134,4 +137,27 @@ enum VisionActionType: String, Codable, CaseIterable, Identifiable, Sendable {
     case custom
 
     var id: String { rawValue }
+}
+
+
+struct VisionTextBlock: Codable, Hashable, Identifiable, Sendable {
+    var id: UUID
+    var title: String?
+    var rawFragments: [String]
+    var reconstructedText: String
+    var confidence: Double
+
+    init(
+        id: UUID = UUID(),
+        title: String? = nil,
+        rawFragments: [String] = [],
+        reconstructedText: String,
+        confidence: Double
+    ) {
+        self.id = id
+        self.title = title
+        self.rawFragments = rawFragments
+        self.reconstructedText = reconstructedText
+        self.confidence = confidence
+    }
 }

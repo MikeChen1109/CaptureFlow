@@ -73,6 +73,43 @@ struct CardGeneratorRouterTests {
         #expect((error as? ServiceError) == .unavailable("Unsupported model."))
     }
 
+    @Test func openAIDefaultUsesFullGenerationModel() {
+        #expect(LLMProviderConfiguration.openAIDefault.generationModel == "gpt-4.1")
+    }
+
+    @Test func openAIGeneratorMergesContinuationFragments() async throws {
+        let generator = OpenAIResponsesCardGenerator(
+            provider: StubLLMProvider(
+                response: """
+                {
+                  "title": "Mobile Developer Role",
+                  "usefulness": "useful",
+                  "confidence": 0.9,
+                  "summary": "A mobile developer role with visible requirements.",
+                  "sections": [
+                    {
+                      "kind": "keyDetails",
+                      "title": "Core Mobile Development Skills",
+                      "content": "Candidates must have 5+ years of mobile development experience with native iOS\\nnative Android\\nand Flutter development.\\nExperience building intuitive\\nuser-centric applications is required.",
+                      "priority": 1
+                    }
+                  ]
+                }
+                """
+            )
+        )
+
+        let content = try await completedContent(from: generator)
+
+        #expect(
+            content.sections.first?.content ==
+                """
+                Candidates must have 5+ years of mobile development experience with native iOS, native Android and Flutter development.
+                Experience building intuitive, user-centric applications is required.
+                """
+        )
+    }
+
     @Test func aiProviderConfigurationProvidesOpenAIKeyForGeneration() throws {
         let configuration = AIProviderConfiguration.current(
             environment: [
@@ -83,6 +120,24 @@ struct CardGeneratorRouterTests {
 
         #expect(configuration.provider == .openAI)
         #expect(try configuration.apiKey(for: .openAI) == "test-api-key")
+        #expect(configuration.openAI.visionModel == LLMProviderConfiguration.openAIDefault.visionModel)
+        #expect(configuration.openAI.promptID == nil)
+    }
+
+    @Test func aiProviderConfigurationSupportsCustomOpenAIPromptID() throws {
+        let configuration = AIProviderConfiguration.current(
+            environment: [
+                "CAPTUREFLOW_AI_PROVIDER": "openai",
+                "CAPTUREFLOW_OPENAI_API_KEY": "test-api-key",
+                "CAPTUREFLOW_OPENAI_PROMPT_ID": "pmpt_custom",
+                "CAPTUREFLOW_OPENAI_PROMPT_VERSION": "7",
+                "CAPTUREFLOW_OPENAI_VISION_MODEL": "gpt-custom-vision"
+            ]
+        )
+
+        #expect(configuration.openAI.visionModel == "gpt-custom-vision")
+        #expect(configuration.openAI.promptID == "pmpt_custom")
+        #expect(configuration.openAI.promptVersion == "7")
     }
 
     private func makeRouter(
@@ -160,5 +215,13 @@ private struct StubCardGenerator: CardGenerating {
             continuation.yield(.completed(card: card, content: content))
             continuation.finish()
         }
+    }
+}
+
+private struct StubLLMProvider: LLMProviding {
+    let response: String
+
+    func responseText(for request: LLMRequest) async throws -> String {
+        response
     }
 }

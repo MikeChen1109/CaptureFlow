@@ -25,12 +25,13 @@ struct AIProviderConfiguration: Sendable {
                     ?? environment["OPENAI_API_KEY"]
                     ?? secrets.string(for: "CAPTUREFLOW_OPENAI_API_KEY")
                     ?? secrets.string(for: "OPENAI_API_KEY"),
+                visionModel: environment["CAPTUREFLOW_OPENAI_VISION_MODEL"]
+                    ?? secrets.string(for: "CAPTUREFLOW_OPENAI_VISION_MODEL")
+                    ?? OpenAIConfiguration.defaultVisionModel,
                 promptID: environment["CAPTUREFLOW_OPENAI_PROMPT_ID"]
-                    ?? secrets.string(for: "CAPTUREFLOW_OPENAI_PROMPT_ID")
-                    ?? OpenAIConfiguration.defaultPromptID,
+                    ?? secrets.string(for: "CAPTUREFLOW_OPENAI_PROMPT_ID"),
                 promptVersion: environment["CAPTUREFLOW_OPENAI_PROMPT_VERSION"]
-                    ?? secrets.string(for: "CAPTUREFLOW_OPENAI_PROMPT_VERSION")
-                    ?? OpenAIConfiguration.defaultPromptVersion,
+                    ?? secrets.string(for: "CAPTUREFLOW_OPENAI_PROMPT_VERSION"),
                 responsesURL: URL(
                     string: environment["CAPTUREFLOW_OPENAI_RESPONSES_URL"]
                         ?? secrets.string(for: "CAPTUREFLOW_OPENAI_RESPONSES_URL")
@@ -53,13 +54,13 @@ extension AIProviderConfiguration: LLMProviderCredentialProviding {
 }
 
 struct OpenAIConfiguration: Sendable {
-    static let defaultPromptID = "pmpt_6a100bf25620819692356a4e45c3a7ec0d46de4235da0642"
-    static let defaultPromptVersion = "2"
+    static let defaultVisionModel = LLMProviderConfiguration.openAIDefault.visionModel
     static let defaultResponsesURL = "https://api.openai.com/v1/responses"
 
     var apiKey: String?
-    var promptID: String
-    var promptVersion: String
+    var visionModel: String
+    var promptID: String?
+    var promptVersion: String?
     var responsesURL: URL
 }
 

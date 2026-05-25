@@ -93,7 +93,7 @@ enum CardGenerationRuntimeMode: Equatable, Sendable {
     var title: String {
         switch self {
         case .provider(let name):
-            "Provider: \(name)"
+            "\(name) Model"
         case .foundationModels:
             "Apple Foundation Models"
         case .mock:

@@ -117,7 +117,8 @@ Image analysis providers live behind `VisionAnalysisProviding`, and text generat
 
 - Vision model: `ProviderVisionAnalyzer` implements `VisionAnalyzing` and turns provider DTOs into `VisionUnderstandingContext`.
 - Generation model: `CardGeneratorRouter` implements `CardGenerating` and chooses the configured external LLM provider or Foundation Models for insight-card generation.
-- Prompt provider: `CardGenerationPromptProviding` owns reusable generation instructions and context formatting. The default implementation is `DefaultCardGenerationPromptProvider`; integrators can inject a custom provider at composition time.
+- Vision prompt provider: `VisionAnalysisPromptProviding` owns reusable image-analysis instructions and the request-specific prompt. The default implementation is `DefaultVisionAnalysisPromptProvider`; integrators can inject a custom provider at composition time.
+- Generation prompt provider: `CardGenerationPromptProviding` owns reusable generation instructions and context formatting. The default implementation is `DefaultCardGenerationPromptProvider`; integrators can inject a custom provider at composition time.
 
 ## Generation Routing
 
@@ -135,6 +136,8 @@ CAPTUREFLOW_OPENAI_API_KEY=your-api-key
 ```
 
 These values can be supplied as Xcode scheme environment variables or in `CaptureFlow/Resources/LocalSecrets.plist`, which is ignored by git. Provider name and model names are composition-time configuration through `LLMProviderConfiguration`, not end-user settings. User defaults only store the generation route selection.
+
+OpenAI vision analysis defaults to the local `DefaultVisionAnalysisPromptProvider` prompt. Teams that still want an OpenAI-hosted prompt can set `CAPTUREFLOW_OPENAI_PROMPT_ID` and optionally `CAPTUREFLOW_OPENAI_PROMPT_VERSION`; custom providers should reuse or replace `VisionAnalysisPromptProviding` so the app keeps the same DTO contract.
 
 Vision provider requests send image data. Generation provider requests are built from `VisionUnderstandingContext` and generation preferences.
 
