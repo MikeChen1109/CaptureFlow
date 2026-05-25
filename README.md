@@ -4,90 +4,58 @@
 
 # CaptureFlow
 
-CaptureFlow is a local-first open-source iOS tool for turning captured visual context into useful insight cards. A user can capture or import an image, analyze it, generate an editable insight, save it locally, and turn supported insights into Reminders or Calendar events.
+## Summary
 
-## Current Scope
+CaptureFlow is a local-first, open-source iOS app that turns screenshots and captured images into actionable AI insight cards. Instead of letting screenshots become forgotten camera-roll clutter, CaptureFlow analyzes the visual context, summarizes what matters, and helps the user turn useful information into follow-up actions.
 
-- SwiftUI app with a dark-mode-first interface
-- Image capture from camera or Photos
-- Local source-image persistence for newly imported images
-- Vision understanding through `VisionAnalyzing`, with OpenAI as the default provider-backed implementation
-- Insight generation through `CardGenerating`
-- Analysis/generation routing: external LLM by default, or Apple Foundation Models on iOS 26+ with Apple Intelligence enabled when selected
-- Saved insight inbox backed by `SavedInsightCard`
-- Detail view with generated sections, source image context, Markdown export, archive, and delete
-- EventKit-backed Reminder and Calendar creation
-- Settings page for generation provider selection and local data reset
+The app can capture or import an image, understand the screenshot with an AI vision provider, generate an editable card, save it locally, export it as Markdown, and turn supported cards into Reminders or Calendar events. The current AI-backed provider implementation uses OpenAI for analysis and generation, with Apple Foundation Models available for generation on supported iOS 26+ devices.
 
-## Repository Layout
+The codebase is designed around clear service boundaries, so teams can keep the default provider implementation or bring their own LLM, prompt, storage, and action integrations.
 
-```text
-CaptureFlow/
-  App/              App entry point, root navigation, dependency composition
-  Data/             Repository protocols and persistence implementations
-  DesignSystem/     Shared SwiftUI components, modifiers, and tokens
-  Domain/           Pure app models, types, and export logic
-  Features/         Workflow-specific screens and view models
-  Resources/        Assets and launch resources
-  Services/         Service protocols, models, mocks, EventKit, and generation
+## Quick Start
 
-CaptureFlowTests/   Unit tests
-CaptureFlowUITests/ UI tests
-docs/               Architecture notes and roadmap
-```
+1. Clone the repository and open `CaptureFlow.xcodeproj` in Xcode.
+2. Configure an OpenAI API key for AI-backed analysis and generation.
+3. Build and run the `CaptureFlow` scheme on an iOS simulator or device.
+4. Optional: switch generation between External LLM and Apple Foundation Models in Settings when Foundation Models are available.
 
-For more detail, see [Architecture](docs/ARCHITECTURE.md).
+### API Key Setup
 
-## Main Flow
-
-1. Home shows recent saved insights.
-2. The user starts a new insight.
-3. The user captures an image or imports one from Photos.
-4. CaptureFlow stores a local source-image copy when possible.
-5. `VisionAnalyzing` produces visual context.
-6. `CardGenerating` streams generated insight sections and an action-capable card adapter.
-7. The user reviews and edits generated content.
-8. The user saves the result as a `SavedInsightCard`.
-9. Detail can create supported Reminder or Calendar actions.
-10. Created external action IDs are written back to the saved insight.
-
-## Service Boundaries
-
-- `VisionAnalyzing`
-- `VisionAnalysisProviding`
-- `CardGenerating`
-- `LLMProviding`
-- `CardRepository`
-- `ReminderCreating`
-- `CalendarCreating`
-
-LLM strategy:
-
-1. `VisionAnalysisProviding` is the provider extension point for image analysis.
-2. `LLMProviding` is the provider extension point for text generation.
-3. Vision uses `ProviderVisionAnalyzer` through `VisionAnalyzing`.
-4. Generation uses `CardGeneratorRouter` through `CardGenerating`.
-5. Generation defaults to the configured external LLM provider, with OpenAI and `gpt-4.1-mini` as the default configuration.
-6. Settings can switch generation to Apple Foundation Models only when iOS 26+ Foundation Models are available, which requires Apple Intelligence to be enabled.
-7. Vision prompts live behind `VisionAnalysisPromptProviding`; the default is `DefaultVisionAnalysisPromptProvider`, and integrators can inject a custom prompt provider without changing analysis UI.
-8. Generation prompts live behind `CardGenerationPromptProviding` so integrators can inject custom instructions and context formatting without changing generator implementations.
-
-API keys are not entered in the app UI. Configure OpenAI-backed analysis and generation with the same local settings:
+API keys are not entered in the app UI. Configure OpenAI-backed analysis and generation with Xcode scheme environment variables:
 
 ```text
 CAPTUREFLOW_AI_PROVIDER=openai
 CAPTUREFLOW_OPENAI_API_KEY=your-api-key
 ```
 
-These values can be supplied as Xcode scheme environment variables or in `CaptureFlow/Resources/LocalSecrets.plist`, which is ignored by git. `LLMProviderConfiguration` controls provider display name plus default vision and generation model names. OpenAI vision analysis uses the local default prompt unless `CAPTUREFLOW_OPENAI_PROMPT_ID` and optionally `CAPTUREFLOW_OPENAI_PROMPT_VERSION` are supplied for a custom OpenAI prompt.
+`OPENAI_API_KEY` is also accepted as a fallback key name. These values can also be supplied in `CaptureFlow/Resources/LocalSecrets.plist`, which is ignored by git:
 
-## Requirements
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CAPTUREFLOW_AI_PROVIDER</key>
+  <string>openai</string>
+  <key>CAPTUREFLOW_OPENAI_API_KEY</key>
+  <string>your-api-key</string>
+</dict>
+</plist>
+```
 
-- Xcode 26.3 or newer
-- iOS 18.0 minimum deployment target
-- iOS 18 simulator runtime or newer
+### Implement Your Own LLM
 
-## Build
+CaptureFlow keeps provider-specific behavior behind protocols so you can swap providers without rewriting the app flow.
+
+- Use `VisionAnalysisProviding` to implement image analysis.
+- Use `LLMProviding` to implement text generation.
+- Update `LLMProviderConfiguration` to define provider display name and default model names.
+- Wire your implementation through `AppContainer.local()` so features continue to depend on `VisionAnalyzing` and `CardGenerating`.
+- Keep prompt changes in code by replacing `VisionAnalysisPromptProviding` or `CardGenerationPromptProviding`.
+
+For more detail, see [Architecture](docs/ARCHITECTURE.md).
+
+### Build
 
 ```sh
 xcodebuild -project CaptureFlow.xcodeproj -scheme CaptureFlow -destination 'generic/platform=iOS Simulator' IPHONEOS_DEPLOYMENT_TARGET=18.0 build
@@ -101,10 +69,15 @@ xcodebuild test -project CaptureFlow.xcodeproj -scheme CaptureFlow -destination 
 
 If your simulator name differs, replace the destination with an installed simulator.
 
+## Requirements
+
+- Xcode 26.3 or newer
+- iOS 18.0 minimum deployment target
+- iOS 18 simulator runtime or newer
+
 ## Open Source
 
 - Contributions: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 - Security policy: [SECURITY.md](SECURITY.md)
-- Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
 - License: [MIT](LICENSE)
