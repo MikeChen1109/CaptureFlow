@@ -13,9 +13,11 @@ struct InsightSectionView: View {
                     status: status
                 )
 
-                sectionContent
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentTransition(.opacity)
+                CollapsibleSectionContent {
+                    sectionContent
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentTransition(.opacity)
+                }
             }
         }
     }
@@ -61,6 +63,129 @@ struct GeneratedSectionHeader: View {
 
             Spacer(minLength: 0)
         }
+    }
+}
+
+private struct CollapsibleSectionContent<Content: View>: View {
+    private let collapsedHeight: CGFloat = 280
+    private let collapseTolerance: CGFloat = 24
+    let content: Content
+
+    @State private var contentHeight: CGFloat = 0
+    @State private var isExpanded = false
+    @AppStorage(GenerationPreferences.Keys.enablesMotionEffects) private var enablesMotionEffects = true
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    private var isCollapsible: Bool {
+        contentHeight > collapsedHeight + collapseTolerance
+    }
+
+    private var visibleHeight: CGFloat? {
+        guard isCollapsible else {
+            return nil
+        }
+
+        return isExpanded ? contentHeight : collapsedHeight
+    }
+
+    private var visibleMaxHeight: CGFloat? {
+        guard contentHeight > 0 else {
+            return collapsedHeight
+        }
+
+        return isCollapsible && !isExpanded ? collapsedHeight : nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CFSpacing.medium) {
+            ZStack(alignment: .bottom) {
+                content
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: SectionContentHeightPreferenceKey.self,
+                                value: proxy.size.height
+                            )
+                        }
+                    }
+                    .frame(height: visibleHeight, alignment: .top)
+                    .frame(maxHeight: visibleMaxHeight, alignment: .top)
+                    .clipped()
+
+                if isCollapsible && !isExpanded {
+                    collapsedFade
+                }
+            }
+
+            if isCollapsible {
+                collapseToggle
+            }
+        }
+        .onPreferenceChange(SectionContentHeightPreferenceKey.self) { height in
+            contentHeight = height
+        }
+        .animation(
+            enablesMotionEffects ? .spring(response: 0.36, dampingFraction: 0.86) : nil,
+            value: isExpanded
+        )
+        .animation(
+            enablesMotionEffects ? .easeInOut(duration: 0.2) : nil,
+            value: isCollapsible
+        )
+    }
+
+    private var collapsedFade: some View {
+        LinearGradient(
+            colors: [
+                CFColors.surface.opacity(0),
+                CFColors.surface.opacity(0.92),
+                CFColors.surface
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 84)
+        .allowsHitTesting(false)
+    }
+
+    private var collapseToggle: some View {
+        Button {
+            withAnimation(enablesMotionEffects ? .spring(response: 0.36, dampingFraction: 0.86) : nil) {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: CFSpacing.small) {
+                Text(isExpanded ? "Show less" : "Show more")
+                    .font(CFTypography.caption.weight(.semibold))
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .bold))
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+            }
+            .foregroundStyle(CFColors.orangeHighlight)
+            .padding(.horizontal, CFSpacing.medium)
+            .frame(height: 32)
+            .background(CFColors.secondarySurface.opacity(0.72))
+            .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: CFCornerRadius.pill, style: .continuous)
+                    .stroke(CFColors.orangeHighlight.opacity(0.32), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .accessibilityLabel(isExpanded ? "Collapse section" : "Expand section")
+    }
+}
+
+private struct SectionContentHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
@@ -113,23 +238,16 @@ private struct KeyValueContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CFSpacing.small) {
             ForEach(text.detailItems, id: \.self) { line in
-                HStack(alignment: .center, spacing: CFSpacing.medium) {
-                    Image(systemName: "list.bullet.rectangle")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(CFColors.orangeHighlight)
-                        .frame(width: 22, height: 22, alignment: .center)
-
-                    Text(line)
-                        .font(CFTypography.callout)
-                        .foregroundStyle(CFColors.textPrimary)
-                        .frame(minHeight: 22, alignment: .center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                }
-                .padding(.horizontal, CFSpacing.medium)
-                .padding(.vertical, CFSpacing.small)
-                .background(CFColors.elevatedSurface)
-                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
+                Text(line)
+                    .font(CFTypography.callout)
+                    .foregroundStyle(CFColors.textPrimary)
+                    .frame(minHeight: 22, alignment: .center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, CFSpacing.medium)
+                    .padding(.vertical, CFSpacing.small)
+                    .background(CFColors.elevatedSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.medium, style: .continuous))
             }
         }
     }
