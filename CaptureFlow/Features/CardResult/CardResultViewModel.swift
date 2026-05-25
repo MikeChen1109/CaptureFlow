@@ -21,7 +21,7 @@ final class CardResultViewModel: ObservableObject {
     private(set) var generatedContent: GeneratedInsightCard?
     private(set) var savedInsightCard: SavedInsightCard?
 
-    private let customFieldValueResolver = CardResultCustomFieldValueResolver()
+    private let calendarActionResolver = CardResultCalendarActionResolver()
     private let cardRepository: any CardRepository
     private let reminderCreator: any ReminderCreating
     private let calendarCreator: any CalendarCreating
@@ -69,79 +69,10 @@ final class CardResultViewModel: ObservableObject {
     }
 
     var calendarActionState: CardResultCalendarActionState {
-        guard case .calendar(let calendar) = card else {
-            return customFieldCalendarActionState
-        }
-
-        let trimmedTitle = calendar.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else {
-            return .unavailable(reason: "Add an event title before creating a calendar event.")
-        }
-
-        let endDate = calendar.endDate > calendar.startDate
-            ? calendar.endDate
-            : calendar.startDate.addingTimeInterval(60 * 60)
-
-        return .available(
-            CalendarCreationRequest(
-                sourceCardID: calendar.id,
-                title: trimmedTitle,
-                startDate: calendar.startDate,
-                endDate: endDate,
-                location: calendar.location,
-                notes: calendar.notes
-            )
+        calendarActionResolver.actionState(
+            for: card,
+            customFields: customFields
         )
-    }
-
-    private var customFieldCalendarActionState: CardResultCalendarActionState {
-        guard let customDate = customCalendarDate else {
-            return .hidden
-        }
-
-        let trimmedTitle = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else {
-            return .unavailable(reason: "Add an event title before creating a calendar event.")
-        }
-
-        let startDate = customDate.combiningTime(from: customCalendarTime)
-        let notes = customFields
-            .filter { $0.type == .note }
-            .map(\.value)
-            .joined(separator: "\n")
-
-        return .available(
-            CalendarCreationRequest(
-                sourceCardID: card.id,
-                title: trimmedTitle,
-                startDate: startDate,
-                endDate: startDate.addingTimeInterval(60 * 60),
-                location: customFieldValue(for: .location),
-                notes: notes
-            )
-        )
-    }
-
-    private var customCalendarDate: Date? {
-        customFields
-            .filter { $0.type == .date }
-            .compactMap { customFieldValueResolver.date(from: $0.value) }
-            .first
-    }
-
-    private var customCalendarTime: Date? {
-        customFields
-            .filter { $0.type == .time }
-            .compactMap { customFieldValueResolver.time(from: $0.value) }
-            .first
-    }
-
-    private func customFieldValue(for type: CardResultCustomFieldType) -> String? {
-        customFields
-            .first { $0.type == type }?
-            .value
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .captureFlowNonEmpty
     }
 
     var showsReminderAction: Bool {
@@ -372,37 +303,6 @@ final class CardResultViewModel: ObservableObject {
         } catch {
             errorMessage = "Unable to save custom fields."
         }
-    }
-}
-
-enum CardResultCalendarActionState: Equatable, Sendable {
-    case hidden
-    case unavailable(reason: String)
-    case available(CalendarCreationRequest)
-
-    var isVisible: Bool {
-        switch self {
-        case .hidden:
-            return false
-        case .unavailable, .available:
-            return true
-        }
-    }
-
-    var request: CalendarCreationRequest? {
-        guard case .available(let request) = self else {
-            return nil
-        }
-
-        return request
-    }
-
-    var unavailableReason: String? {
-        guard case .unavailable(let reason) = self else {
-            return nil
-        }
-
-        return reason
     }
 }
 

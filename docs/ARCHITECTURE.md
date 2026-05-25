@@ -61,6 +61,7 @@ CaptureFlow/
 
 `Domain`
 : Pure app models and export logic. Domain files should stay independent from SwiftUI, UIKit, EventKit, provider SDKs, and network SDKs.
+Persisted card metadata such as custom fields belongs here; UI affordances for those models should live in feature-level extensions.
 
 `Features`
 : Workflow-specific SwiftUI screens and view models. Feature code can compose domain models, repositories, services, and design system primitives.

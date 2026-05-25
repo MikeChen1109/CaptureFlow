@@ -15,7 +15,6 @@ final class CardDetailViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var actionMessage: String?
 
-    private let customFieldValueResolver = CardResultCustomFieldValueResolver()
     private let cardID: UUID
     private let cardRepository: any CardRepository
     private let reminderCreator: any ReminderCreating
@@ -249,33 +248,11 @@ final class CardDetailViewModel: ObservableObject {
     }
 
     private var customReminderDate: Date? {
-        guard let customDate = customDate else {
-            return nil
-        }
-
-        return customDate.combiningTime(from: customTime)
-    }
-
-    private var customDate: Date? {
-        customFields
-            .filter { $0.type == .date }
-            .compactMap { customFieldValueResolver.date(from: $0.value) }
-            .first
-    }
-
-    private var customTime: Date? {
-        customFields
-            .filter { $0.type == .time }
-            .compactMap { customFieldValueResolver.time(from: $0.value) }
-            .first
+        customFieldValues.combinedDateTime
     }
 
     private func customFieldValue(for type: CardResultCustomFieldType) -> String? {
-        customFields
-            .first { $0.type == type }?
-            .value
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .captureFlowNonEmpty
+        customFieldValues.firstValue(for: type)
     }
 
     private func notesWithCustomFields(baseNotes: String) -> String {
@@ -284,14 +261,7 @@ final class CardDetailViewModel: ObservableObject {
             .captureFlowNonEmpty
             .map { [$0] } ?? []
 
-        let detailFields = customFields.filter { field in
-            switch field.type {
-            case .date, .time, .location:
-                false
-            case .note, .link, .contact, .custom:
-                true
-            }
-        }
+        let detailFields = customFieldValues.fields(excluding: [.date, .time, .location])
 
         noteLines.append(
             contentsOf: detailFields.map { field in
@@ -300,6 +270,10 @@ final class CardDetailViewModel: ObservableObject {
         )
 
         return noteLines.joined(separator: "\n")
+    }
+
+    private var customFieldValues: CardResultCustomFieldValues {
+        CardResultCustomFieldValues(fields: customFields)
     }
 
     func delete() async -> Bool {
