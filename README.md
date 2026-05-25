@@ -6,6 +6,10 @@
 
 CaptureFlow is an open-source iOS app and reference architecture for turning screenshots into structured AI insight cards.
 
+<p align="center">
+  <img src="docs/assets/captureflow-demo.png" alt="CaptureFlow demo screen" width="320">
+</p>
+
 ## Summary
 
 CaptureFlow turns screenshots and captured images into actionable AI insight cards, helping users prevent useful screenshots from becoming forgotten camera-roll clutter.
