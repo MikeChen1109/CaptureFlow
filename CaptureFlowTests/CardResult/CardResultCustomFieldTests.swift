@@ -415,13 +415,14 @@ struct CardResultCustomFieldTests {
         #expect(!viewModel.canCreateCalendar)
     }
 
-    @Test @MainActor func inboxSearchDebouncesAndSearchesAcrossStatusFilters() async throws {
+    @Test @MainActor func inboxSearchDebouncesAndSearchesAcrossFilters() async throws {
         let activeCard = savedInsightCard(title: "Active launch plan", status: .saved)
         let archivedCard = savedInsightCard(title: "Vendor renewal contract", status: .archived)
         let repository = InMemoryCardRepository(seedCards: [activeCard, archivedCard])
         let viewModel = InboxViewModel(cardRepository: repository)
 
         await viewModel.loadIfNeeded()
+        viewModel.selectedFilter = .category(.other)
         #expect(viewModel.filteredCards.map(\.id) == [activeCard.id])
 
         viewModel.searchText = "vendor"
