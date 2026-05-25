@@ -77,9 +77,9 @@ struct InboxView: View {
     }
 
     private var statusFilter: some View {
-        InboxStatusFilterBar(
-            items: InboxStatusFilter.allCases,
-            selection: $viewModel.selectedStatusFilter,
+        InboxFilterBar(
+            items: InboxFilter.allCases,
+            selection: $viewModel.selectedFilter,
             searchText: $viewModel.searchText,
             isSearchExpanded: $isSearchExpanded
         ) { isKeyboardActive in
@@ -143,9 +143,9 @@ struct InboxView: View {
     }
 }
 
-private struct InboxStatusFilterBar: View {
-    let items: [InboxStatusFilter]
-    @Binding var selection: InboxStatusFilter
+private struct InboxFilterBar: View {
+    let items: [InboxFilter]
+    @Binding var selection: InboxFilter
     @Binding var searchText: String
     @Binding var isSearchExpanded: Bool
     let onSearchActivated: (Bool) -> Void
@@ -202,7 +202,7 @@ private struct InboxStatusFilterBar: View {
     }
 
     @ViewBuilder
-    private func itemView(_ item: InboxStatusFilter) -> some View {
+    private func itemView(_ item: InboxFilter) -> some View {
         let isLast = items.last == item && isSearchExpanded
 
         ZStack {
@@ -304,7 +304,7 @@ private struct InboxStatusFilterBar: View {
         colorScheme == .dark ? CFColors.textPrimary : CFColors.background
     }
 
-    private func foregroundTint(for item: InboxStatusFilter) -> Color {
+    private func foregroundTint(for item: InboxFilter) -> Color {
         guard selection == item else {
             return CFColors.textPrimary
         }
@@ -312,7 +312,7 @@ private struct InboxStatusFilterBar: View {
         return colorScheme == .dark ? CFColors.background : CFColors.textPrimary
     }
 
-    private func backgroundTint(for item: InboxStatusFilter) -> Color {
+    private func backgroundTint(for item: InboxFilter) -> Color {
         guard selection == item else {
             return .clear
         }

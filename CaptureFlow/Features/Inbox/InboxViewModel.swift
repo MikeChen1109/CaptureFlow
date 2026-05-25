@@ -6,7 +6,7 @@ final class InboxViewModel: ObservableObject {
     @Published private(set) var cards: [SavedInsightCard] = []
     @Published private(set) var isLoading = false
     @Published private(set) var hasLoaded = false
-    @Published var selectedStatusFilter: InboxStatusFilter = .active
+    @Published var selectedFilter: InboxFilter = .all
     @Published var searchText = "" {
         didSet {
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -43,7 +43,7 @@ final class InboxViewModel: ObservableObject {
         }
 
         return cards
-            .filter(matchesStatusFilter)
+            .filter(matchesSelectedFilter)
             .sortedByCreatedDate()
     }
 
@@ -52,11 +52,11 @@ final class InboxViewModel: ObservableObject {
             return "No matching insights"
         }
 
-        return switch selectedStatusFilter {
-        case .active:
-            "No active insights"
-        case .expired:
-            "No expired insights"
+        return switch selectedFilter {
+        case .all:
+            "No insights"
+        case .category(let cardType):
+            "No \(cardType.displayName.lowercased()) insights"
         case .archived:
             "No archived insights"
         }
@@ -67,11 +67,11 @@ final class InboxViewModel: ObservableObject {
             return "Try a different search or clear the search field."
         }
 
-        return switch selectedStatusFilter {
-        case .active:
-            "New saved insights and unfinished cards will appear here."
-        case .expired:
-            "Insights with past due dates or ended events will appear here."
+        return switch selectedFilter {
+        case .all:
+            "Saved insights will appear here."
+        case .category(let cardType):
+            "Saved \(cardType.displayName.lowercased()) insights will appear here."
         case .archived:
             "Archived insights will appear here after you move them out of the active inbox."
         }
@@ -141,12 +141,12 @@ final class InboxViewModel: ObservableObject {
         isLoading = false
     }
 
-    private func matchesStatusFilter(_ card: SavedInsightCard) -> Bool {
-        switch selectedStatusFilter {
-        case .active:
-            card.status != .archived && !card.isExpired(relativeTo: nowProvider())
-        case .expired:
-            card.status != .archived && card.isExpired(relativeTo: nowProvider())
+    private func matchesSelectedFilter(_ card: SavedInsightCard) -> Bool {
+        switch selectedFilter {
+        case .all:
+            card.status != .archived
+        case .category(let cardType):
+            card.status != .archived && card.inboxFilterType == cardType
         case .archived:
             card.status == .archived
         }
@@ -157,19 +157,30 @@ final class InboxViewModel: ObservableObject {
     }
 }
 
-enum InboxStatusFilter: String, CaseIterable, Identifiable {
-    case active
-    case expired
+enum InboxFilter: Hashable, Identifiable {
+    case all
+    case category(CardType)
     case archived
 
-    var id: String { rawValue }
+    static let allCases: [InboxFilter] = [.all] + CardType.inboxFilterCategories.map(InboxFilter.category) + [.archived]
+
+    var id: String {
+        switch self {
+        case .all:
+            "all"
+        case .category(let cardType):
+            "category-\(cardType.rawValue)"
+        case .archived:
+            "archived"
+        }
+    }
 
     var title: String {
         switch self {
-        case .active:
-            "Active"
-        case .expired:
-            "Expired"
+        case .all:
+            "All"
+        case .category(let cardType):
+            cardType.displayName
         case .archived:
             "Archived"
         }

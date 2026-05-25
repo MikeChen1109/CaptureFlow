@@ -1,6 +1,11 @@
 import Foundation
 
 extension SavedInsightCard {
+    var inboxFilterType: CardType {
+        let cardType = actionCard?.type ?? metadata.cardType ?? .unknown
+        return cardType == .unknown ? .other : cardType
+    }
+
     var searchableText: String {
         [
             title,
@@ -35,6 +40,10 @@ extension SavedInsightCard {
             nil
         }
     }
+}
+
+extension CardType {
+    static let inboxFilterCategories: [CardType] = allCases.filter { $0 != .unknown }
 }
 
 extension Array where Element == SavedInsightCard {
