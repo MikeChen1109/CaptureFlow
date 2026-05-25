@@ -131,6 +131,7 @@ If your simulator name differs, replace the destination with an installed simula
 - [ ] macOS support
 - [ ] Multiple screenshot support
 - [ ] Partial generation support
+- [ ] More useful actions
 
 ## Open Source
 
