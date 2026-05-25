@@ -4,7 +4,7 @@ Thanks for taking the time to improve CaptureFlow.
 
 ## Project Direction
 
-CaptureFlow is a local-first open-source iOS tool. Contributions should keep the app easy to run, inspect, and adapt.
+CaptureFlow is an open-source iOS tool for turning captured visual context into actionable insight cards. Contributions should keep the app easy to run, inspect, and adapt.
 
 Good contribution areas:
 

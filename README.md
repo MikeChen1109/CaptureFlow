@@ -6,9 +6,9 @@
 
 ## Summary
 
-CaptureFlow is a local-first, open-source iOS app that turns screenshots and captured images into actionable AI insight cards. Instead of letting screenshots become forgotten camera-roll clutter, CaptureFlow analyzes the visual context, summarizes what matters, and helps the user turn useful information into follow-up actions.
+CaptureFlow is an open-source iOS app that turns screenshots and captured images into actionable AI insight cards. Instead of letting screenshots become forgotten camera-roll clutter, CaptureFlow analyzes the visual context, summarizes what matters, and helps the user turn useful information into follow-up actions.
 
-The app can capture or import an image, understand the screenshot with an AI vision provider, generate an editable card, save it locally, export it as Markdown, and turn supported cards into Reminders or Calendar events. The current AI-backed provider implementation uses OpenAI for analysis and generation, with Apple Foundation Models available for generation on supported iOS 26+ devices.
+The app can capture or import an image, understand the screenshot with an AI vision provider, generate an editable card, save it on device, export it as Markdown, and turn supported cards into Reminders or Calendar events. The current AI-backed provider implementation uses OpenAI for analysis and generation, with Apple Foundation Models available for generation on supported iOS 26+ devices.
 
 The codebase is designed around clear service boundaries, so teams can keep the default provider implementation or bring their own LLM, prompt, storage, and action integrations.
 

@@ -1,6 +1,6 @@
 # Architecture
 
-CaptureFlow uses a single Swift module with feature-oriented folders and protocol-based service boundaries. The app is local-first by default: captured images are copied into app support storage, generated insights are persisted locally, and external systems are reached only through narrow service protocols.
+CaptureFlow uses a single Swift module with feature-oriented folders and protocol-based service boundaries. Captured images are copied into app support storage and generated insights are persisted on device, while AI-backed analysis and generation can send user content to the configured provider. External systems are reached through narrow service protocols.
 
 ## Layout
 
