@@ -164,6 +164,48 @@ struct CardResultCustomFieldTests {
         #expect(abs(request!.endDate.timeIntervalSince(request!.startDate) - 3_600) < 0.001)
     }
 
+    @Test func calendarActionResolverBuildsRequestFromCustomFields() {
+        let resolver = CardResultCustomFieldValueResolver()
+        let calendar = Calendar.autoupdatingCurrent
+        let scheduledDate = calendar.date(
+            from: DateComponents(year: 2026, month: 5, day: 15, hour: 14, minute: 30)
+        )!
+        let cardID = UUID()
+        let actionCard = ActionCard.note(
+            NoteCard(
+                metadata: CardMetadata(
+                    id: cardID,
+                    confidence: .medium,
+                    confidenceScore: 0.72
+                ),
+                title: "Budget review",
+                summary: ""
+            )
+        )
+        let customFields = [
+            CardResultCustomField(type: .date, value: resolver.dateString(from: scheduledDate)),
+            CardResultCustomField(type: .time, value: resolver.timeString(from: scheduledDate)),
+            CardResultCustomField(type: .location, value: "  Conference Room A  "),
+            CardResultCustomField(type: .note, value: "Bring invoices")
+        ]
+
+        let request = CardResultCalendarActionResolver()
+            .actionState(for: actionCard, customFields: customFields)
+            .request
+        let requestComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: request!.startDate)
+
+        #expect(request?.sourceCardID == cardID)
+        #expect(request?.title == "Budget review")
+        #expect(request?.location == "Conference Room A")
+        #expect(request?.notes == "Bring invoices")
+        #expect(requestComponents.year == 2026)
+        #expect(requestComponents.month == 5)
+        #expect(requestComponents.day == 15)
+        #expect(requestComponents.hour == 14)
+        #expect(requestComponents.minute == 30)
+        #expect(abs(request!.endDate.timeIntervalSince(request!.startDate) - 3_600) < 0.001)
+    }
+
     @Test func savedInsightCardCopiesCreatedReminderStateFromActionCard() {
         let reminderID = "reminder-123"
         let card = ReminderCard(
