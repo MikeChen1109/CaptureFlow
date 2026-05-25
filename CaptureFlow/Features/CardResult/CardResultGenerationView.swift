@@ -263,8 +263,7 @@ private struct UnifiedGenerationLoadingView: View {
 
                         CFLoadingStepsView(
                             steps: steps,
-                            currentStepIndex: max(0, min(currentStepIndex, steps.count - 1)),
-                            showsActiveSpinner: false
+                            currentStepIndex: max(0, min(currentStepIndex, steps.count - 1))
                         )
 
                         if let errorMessage {

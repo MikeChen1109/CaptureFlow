@@ -5,13 +5,45 @@ import FoundationModels
 #endif
 
 enum FoundationModelAvailability {
-    nonisolated static var isAvailable: Bool {
+    enum Status: Equatable, Sendable {
+        case available
+        case deviceNotEligible
+        case appleIntelligenceNotEnabled
+        case modelNotReady
+        case unsupportedOS
+        case unavailable
+
+        nonisolated var isAvailable: Bool {
+            if case .available = self {
+                return true
+            }
+
+            return false
+        }
+    }
+
+    nonisolated static var current: Status {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
-            return SystemLanguageModel.default.isAvailable
+            switch SystemLanguageModel.default.availability {
+            case .available:
+                return .available
+            case .unavailable(.deviceNotEligible):
+                return .deviceNotEligible
+            case .unavailable(.appleIntelligenceNotEnabled):
+                return .appleIntelligenceNotEnabled
+            case .unavailable(.modelNotReady):
+                return .modelNotReady
+            @unknown default:
+                return .unavailable
+            }
         }
         #endif
 
-        return false
+        return .unsupportedOS
+    }
+
+    nonisolated static var isAvailable: Bool {
+        current.isAvailable
     }
 }

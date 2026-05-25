@@ -34,7 +34,7 @@ enum GenerationModelSelection: String, CaseIterable, Identifiable, Sendable {
         case .externalLLM:
             "Use the configured external LLM provider. The default provider is OpenAI."
         case .foundationModels:
-            "Requires iOS 26 or later with Apple Intelligence enabled."
+            "Use Apple's on-device model to reduce external LLM spend."
         }
     }
 }

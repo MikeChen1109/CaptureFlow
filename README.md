@@ -69,7 +69,8 @@ LLM strategy:
 4. Generation uses `CardGeneratorRouter` through `CardGenerating`.
 5. Generation defaults to the configured external LLM provider, with OpenAI and `gpt-4.1-mini` as the default configuration.
 6. Settings can switch generation to Apple Foundation Models only when iOS 26+ Foundation Models are available, which requires Apple Intelligence to be enabled.
-7. Generation prompts live behind `CardGenerationPromptProviding` so integrators can inject custom instructions and context formatting without changing generator implementations.
+7. Vision prompts live behind `VisionAnalysisPromptProviding`; the default is `DefaultVisionAnalysisPromptProvider`, and integrators can inject a custom prompt provider without changing analysis UI.
+8. Generation prompts live behind `CardGenerationPromptProviding` so integrators can inject custom instructions and context formatting without changing generator implementations.
 
 API keys are not entered in the app UI. Configure OpenAI-backed analysis and generation with the same local settings:
 
@@ -78,7 +79,7 @@ CAPTUREFLOW_AI_PROVIDER=openai
 CAPTUREFLOW_OPENAI_API_KEY=your-api-key
 ```
 
-These values can be supplied as Xcode scheme environment variables or in `CaptureFlow/Resources/LocalSecrets.plist`, which is ignored by git. `LLMProviderConfiguration` controls provider display name plus default vision and generation model names.
+These values can be supplied as Xcode scheme environment variables or in `CaptureFlow/Resources/LocalSecrets.plist`, which is ignored by git. `LLMProviderConfiguration` controls provider display name plus default vision and generation model names. OpenAI vision analysis uses the local default prompt unless `CAPTUREFLOW_OPENAI_PROMPT_ID` and optionally `CAPTUREFLOW_OPENAI_PROMPT_VERSION` are supplied for a custom OpenAI prompt.
 
 ## Requirements
 

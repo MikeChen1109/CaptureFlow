@@ -62,15 +62,22 @@ struct OpenAIResponsesCardGenerator: CardGenerating {
         "additionalProperties": false,
         "required": ["title", "usefulness", "confidence", "summary", "sections"],
         "properties": [
-            "title": ["type": "string"],
+            "title": [
+                "type": "string",
+                "description": "Short, specific title based only on visible context."
+            ],
             "usefulness": [
                 "type": "string",
                 "enum": ["useful", "partiallyUseful", "lowInformation", "unclear"]
             ],
             "confidence": ["type": "number", "minimum": 0, "maximum": 1],
-            "summary": ["type": ["string", "null"]],
+            "summary": [
+                "type": ["string", "null"],
+                "description": "Optional complete prose summary. Do not include raw OCR fragments."
+            ],
             "sections": [
                 "type": "array",
+                "description": "Meaningful card sections. Prefer fewer coherent sections over many small fragment sections.",
                 "minItems": 1,
                 "maxItems": 7,
                 "items": [
@@ -92,8 +99,14 @@ struct OpenAIResponsesCardGenerator: CardGenerating {
                                 "note"
                             ]
                         ],
-                        "title": ["type": "string"],
-                        "content": ["type": "string"],
+                        "title": [
+                            "type": "string",
+                            "description": "Human-readable section title describing one meaningful theme."
+                        ],
+                        "content": [
+                            "type": "string",
+                            "description": "User-facing cleaned content. For keyDetails, checklist, and suggestedActions, use newline-separated complete items only. Each line must be understandable alone; do not include orphan fragments, dangling connector starts, raw OCR line breaks, or comma-split pieces of one sentence."
+                        ],
                         "priority": ["type": "integer", "minimum": 1]
                     ]
                 ]
@@ -117,7 +130,7 @@ private struct ProviderGeneratedInsightCard: Decodable {
                 InsightSection(
                     kind: $0.kind,
                     title: $0.title,
-                    content: $0.content,
+                    content: $0.cleanedContent,
                     priority: $0.priority
                 )
             }
@@ -143,4 +156,70 @@ private struct ProviderInsightSection: Decodable {
     var title: String
     var content: String
     var priority: Int
+
+    var cleanedContent: String {
+        switch kind {
+        case .keyDetails, .checklist, .suggestedActions:
+            content.mergingContinuationLines
+        default:
+            content.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+}
+
+private extension String {
+    var mergingContinuationLines: String {
+        let lines = split(whereSeparator: \.isNewline)
+            .map { String($0).strippingListPrefix.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var merged: [String] = []
+        for line in lines {
+            guard line.isContinuationFragment, let previous = merged.popLast() else {
+                merged.append(line)
+                continue
+            }
+
+            merged.append(previous.mergingContinuation(line))
+        }
+
+        return merged.joined(separator: "\n")
+    }
+
+    var strippingListPrefix: String {
+        var value = trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["- [ ] ", "- ", "* ", "• "] where value.hasPrefix(prefix) {
+            value.removeFirst(prefix.count)
+            return value
+        }
+        return value
+    }
+
+    var isContinuationFragment: Bool {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = value.first else {
+            return false
+        }
+
+        let lowered = value.lowercased()
+        if ["and ", "or ", "plus ", "alongside ", "along with ", "covering ", "rendering "]
+            .contains(where: { lowered.hasPrefix($0) }) {
+            return true
+        }
+
+        return first.isLowercase
+    }
+
+    func mergingContinuation(_ continuation: String) -> String {
+        let trimmedContinuation = continuation.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContinuation.isEmpty else {
+            return self
+        }
+
+        if trimmedContinuation.lowercased().hasPrefix("and ") {
+            return "\(self) \(trimmedContinuation)"
+        }
+
+        return "\(self), \(trimmedContinuation)"
+    }
 }
