@@ -7,20 +7,11 @@ final class InboxViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var hasLoaded = false
     @Published var selectedFilter: InboxFilter = .all
-    @Published var searchText = "" {
-        didSet {
-            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                debouncedSearchText = ""
-            }
-        }
-    }
+    @Published var searchText = ""
     @Published var errorMessage: String?
-
-    @Published private var debouncedSearchText = ""
 
     private let cardRepository: any CardRepository
     private let nowProvider: () -> Date
-    private var cancellables: Set<AnyCancellable> = []
 
     init(
         cardRepository: any CardRepository,
@@ -28,7 +19,6 @@ final class InboxViewModel: ObservableObject {
     ) {
         self.cardRepository = cardRepository
         self.nowProvider = nowProvider
-        bindSearchText()
     }
 
     convenience init(container: AppContainer) {
@@ -78,22 +68,11 @@ final class InboxViewModel: ObservableObject {
     }
 
     private var normalizedSearchText: String {
-        debouncedSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var hasActiveSearch: Bool {
         !normalizedSearchText.isEmpty
-    }
-
-    private func bindSearchText() {
-        $searchText
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .removeDuplicates()
-            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
-            .sink { [weak self] searchText in
-                self?.debouncedSearchText = searchText
-            }
-            .store(in: &cancellables)
     }
 
     func loadIfNeeded() async {

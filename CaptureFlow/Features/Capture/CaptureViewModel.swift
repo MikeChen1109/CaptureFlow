@@ -12,8 +12,6 @@ final class CaptureViewModel: ObservableObject {
     @Published private(set) var isLoadingImage = false
     @Published var errorMessage: String?
 
-    private let sourceImageFileStore = try? SourceImageFileStore()
-
     var canAnalyze: Bool {
         selectedImageData != nil
     }
@@ -43,14 +41,11 @@ final class CaptureViewModel: ObservableObject {
                   let uiImage = UIImage(data: data) else {
                 throw ServiceError.noImageProvided
             }
-            let persistedData = uiImage.jpegData(compressionQuality: 0.86) ?? data
-            let localPath = try persistSourceImageData(persistedData)
 
             selectedImageData = data
             selectedImage = Image(uiImage: uiImage)
             sourceImage = CardSourceImage(
                 source: .photoLibrary,
-                localPath: localPath,
                 assetLocalIdentifier: item.itemIdentifier
             )
         } catch {
@@ -69,17 +64,8 @@ final class CaptureViewModel: ObservableObject {
         selectedImageData = data
         selectedImage = Image(uiImage: uiImage)
         sourceImage = CardSourceImage(
-            source: .camera,
-            localPath: try? persistSourceImageData(data)
+            source: .camera
         )
         errorMessage = nil
-    }
-
-    private func persistSourceImageData(_ data: Data) throws -> String {
-        guard let sourceImageFileStore else {
-            throw ServiceError.unavailable("Unable to prepare source image storage.")
-        }
-
-        return try sourceImageFileStore.saveImageData(data)
     }
 }

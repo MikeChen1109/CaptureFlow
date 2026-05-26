@@ -402,6 +402,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Create calendar events from captured action cards.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Capture photos to generate local action cards.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Access selected source photos to preview images linked to saved insight cards.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Create reminders from captured action cards.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -443,6 +444,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Create calendar events from captured action cards.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Capture photos to generate local action cards.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Access selected source photos to preview images linked to saved insight cards.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Create reminders from captured action cards.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

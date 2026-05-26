@@ -24,7 +24,7 @@ struct CardDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: sectionSpacing) {
+            LazyVStack(alignment: .leading, spacing: sectionSpacing) {
                 content
             }
             .padding(CFSpacing.large)
@@ -117,10 +117,8 @@ struct CardDetailView: View {
     }
 
     private func insightSections(_ card: SavedInsightCard) -> some View {
-        VStack(alignment: .leading, spacing: sectionSpacing) {
-            ForEach(card.insight.sections.sorted { $0.priority < $1.priority }) { section in
-                InsightSectionView(section: section)
-            }
+        ForEach(card.insight.sections.sorted { $0.priority < $1.priority }) { section in
+            InsightSectionView(section: section)
         }
     }
 

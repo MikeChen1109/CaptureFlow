@@ -5,7 +5,7 @@ import UIKit
 @MainActor
 final class CardDetailViewModel: ObservableObject {
     @Published private(set) var card: SavedInsightCard?
-    @Published private(set) var isLoading = false
+    @Published private(set) var isLoading = true
     @Published private(set) var isArchiving = false
     @Published private(set) var isDeleting = false
     @Published private(set) var isCreatingReminder = false
@@ -61,6 +61,11 @@ final class CardDetailViewModel: ObservableObject {
     }
 
     func load() async {
+        guard card == nil else {
+            isLoading = false
+            return
+        }
+
         isLoading = true
         errorMessage = nil
 

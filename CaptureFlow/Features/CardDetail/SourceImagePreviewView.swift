@@ -13,7 +13,10 @@ struct SourceImageSectionView: View {
     var body: some View {
         CFCardContainer {
             HStack(spacing: CFSpacing.medium) {
-                SourceImageThumbnail(presentation: presentation)
+                SourceImageThumbnail(
+                    presentation: presentation,
+                    sourceImage: card.sourceImage
+                )
 
                 VStack(alignment: .leading, spacing: CFSpacing.xSmall) {
                     Text(presentation.title)
@@ -52,27 +55,62 @@ struct SourceImageSectionView: View {
 
 private struct SourceImageThumbnail: View {
     let presentation: SourceImagePresentation
+    let sourceImage: CardSourceImage?
+    @State private var thumbnailImage: UIImage?
 
     @ViewBuilder
     var body: some View {
-        if let preview = presentation.preview {
-            Image(uiImage: preview.image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous)
-                        .stroke(CFColors.border, lineWidth: 1)
-                }
-        } else {
-            Image(systemName: presentation.systemImage)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(CFColors.background)
-                .frame(width: 56, height: 56)
-                .background(CFColors.primaryOrange)
-                .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous))
+        Group {
+            if let thumbnailImage {
+                thumbnail(thumbnailImage)
+            } else {
+                Image(systemName: presentation.systemImage)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(CFColors.background)
+                    .frame(width: 56, height: 56)
+                    .background(CFColors.primaryOrange)
+                    .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous))
+            }
         }
+        .task(id: photoAssetIdentifier) {
+            await loadThumbnail()
+        }
+    }
+
+    private func thumbnail(_ image: UIImage) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: CFCornerRadius.large, style: .continuous)
+                    .stroke(CFColors.border, lineWidth: 1)
+            }
+    }
+
+    private var photoAssetIdentifier: String? {
+        guard sourceImage?.source == .photoLibrary else {
+            return nil
+        }
+
+        return sourceImage?.assetLocalIdentifier
+    }
+
+    private func loadThumbnail() async {
+        thumbnailImage = nil
+
+        guard let photoAssetIdentifier else {
+            return
+        }
+
+        thumbnailImage = try? await PhotoLibrarySourceImageLoader.thumbnail(
+            assetLocalIdentifier: photoAssetIdentifier,
+            targetSize: CGSize(
+                width: 56 * UIScreen.main.scale,
+                height: 56 * UIScreen.main.scale
+            )
+        )
     }
 }
 
@@ -82,12 +120,10 @@ private struct SourceImagePresentation {
     let subtitle: String
     let hint: String
     let systemImage: String
-    let preview: SourceImagePreview?
     let canOpenPreview: Bool
 
     init(card: SavedInsightCard) {
         let sourceImage = card.sourceImage
-        preview = sourceImage.flatMap(SourceImagePreview.init(sourceImage:))
         canOpenPreview = sourceImage?.canAttemptPreview == true
 
         switch sourceImage?.source {
@@ -98,7 +134,7 @@ private struct SourceImagePresentation {
             systemImage = "photo.on.rectangle"
         case .camera:
             title = "Original Screenshot"
-            subtitle = "Saved in CaptureFlow"
+            subtitle = "Camera Capture"
             hint = canOpenPreview ? "Tap to view" : "Original preview unavailable"
             systemImage = "camera.fill"
         case .shareExtension:
@@ -126,17 +162,6 @@ private struct SourceImagePreview: Identifiable {
         self.title = title
     }
 
-    init?(sourceImage: CardSourceImage) {
-        guard let localPath = try? SourceImageFileStore().resolvedPath(for: sourceImage.localPath),
-              let image = UIImage(contentsOfFile: localPath)
-        else {
-            return nil
-        }
-
-        self.id = sourceImage.id
-        self.image = image
-        self.title = sourceImage.previewTitle
-    }
 }
 
 struct SourceImagePreviewView: View {
@@ -196,8 +221,13 @@ struct SourceImagePreviewView: View {
         isLoading = true
         errorMessage = nil
 
-        if let localPreview = SourceImagePreview(sourceImage: sourceImage) {
-            preview = localPreview
+        if let localPath = sourceImage.resolvedLocalPreviewPath {
+            do {
+                let image = try await LocalSourceImageLoader.image(localPath: localPath)
+                preview = SourceImagePreview(id: sourceImage.id, image: image, title: sourceImage.previewTitle)
+            } catch {
+                errorMessage = "The saved source image file is no longer available."
+            }
             isLoading = false
             return
         }
@@ -218,6 +248,21 @@ struct SourceImagePreviewView: View {
         }
 
         isLoading = false
+    }
+}
+
+private enum LocalSourceImageLoader {
+    static func image(localPath: String) async throws -> UIImage {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let image = UIImage(contentsOfFile: localPath) else {
+                    continuation.resume(throwing: ServiceError.noImageProvided)
+                    return
+                }
+
+                continuation.resume(returning: image)
+            }
+        }
     }
 }
 
@@ -299,17 +344,55 @@ private struct ZoomableSourceImageView: UIViewRepresentable {
     }
 }
 
-@MainActor
 private enum PhotoLibrarySourceImageLoader {
-    static func image(assetLocalIdentifier: String) async throws -> UIImage {
-        let result = PHAsset.fetchAssets(
-            withLocalIdentifiers: [assetLocalIdentifier],
-            options: nil
-        )
-
-        guard let asset = result.firstObject else {
-            throw ServiceError.noImageProvided
+    static func thumbnail(
+        assetLocalIdentifier: String,
+        targetSize: CGSize
+    ) async throws -> UIImage {
+        guard hasReadAccess else {
+            throw ServiceError.permissionDenied
         }
+
+        let asset = try asset(assetLocalIdentifier: assetLocalIdentifier)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .fastFormat
+            options.resizeMode = .fast
+            options.isNetworkAccessAllowed = false
+            options.isSynchronous = false
+
+            var didResume = false
+
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: targetSize,
+                contentMode: .aspectFill,
+                options: options
+            ) { image, info in
+                guard !didResume else { return }
+
+                if let image {
+                    didResume = true
+                    continuation.resume(returning: image)
+                    return
+                }
+
+                let isDegraded = info?[PHImageResultIsDegradedKey] as? Bool == true
+                let isCancelled = info?[PHImageCancelledKey] as? Bool == true
+                let error = info?[PHImageErrorKey] as? Error
+
+                if isCancelled || error != nil || !isDegraded {
+                    didResume = true
+                    continuation.resume(throwing: error ?? ServiceError.noImageProvided)
+                }
+            }
+        }
+    }
+
+    static func image(assetLocalIdentifier: String) async throws -> UIImage {
+        try await ensureReadAccess()
+        let asset = try asset(assetLocalIdentifier: assetLocalIdentifier)
 
         return try await withCheckedThrowingContinuation { continuation in
             let options = PHImageRequestOptions()
@@ -332,15 +415,73 @@ private enum PhotoLibrarySourceImageLoader {
             }
         }
     }
+
+    private static func ensureReadAccess() async throws {
+        if hasReadAccess {
+            return
+        }
+
+        if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .notDetermined {
+            let requestedStatus = await requestReadAccess()
+            guard requestedStatus == .authorized || requestedStatus == .limited else {
+                throw ServiceError.permissionDenied
+            }
+            return
+        }
+
+        throw ServiceError.permissionDenied
+    }
+
+    private static var hasReadAccess: Bool {
+        switch PHPhotoLibrary.authorizationStatus(for: .readWrite) {
+        case .authorized, .limited:
+            true
+        case .notDetermined, .denied, .restricted:
+            false
+        @unknown default:
+            false
+        }
+    }
+
+    private static func requestReadAccess() async -> PHAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+                continuation.resume(returning: status)
+            }
+        }
+    }
+
+    private static func asset(assetLocalIdentifier: String) throws -> PHAsset {
+        let result = PHAsset.fetchAssets(
+            withLocalIdentifiers: [assetLocalIdentifier],
+            options: nil
+        )
+
+        guard let asset = result.firstObject else {
+            throw ServiceError.noImageProvided
+        }
+
+        return asset
+    }
 }
 
 private extension CardSourceImage {
     var canAttemptPreview: Bool {
-        if SourceImagePreview(sourceImage: self) != nil {
+        if resolvedLocalPreviewPath != nil {
             return true
         }
 
         return source == .photoLibrary && assetLocalIdentifier != nil
+    }
+
+    var resolvedLocalPreviewPath: String? {
+        guard let storedPath = localPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !storedPath.isEmpty
+        else {
+            return nil
+        }
+
+        return try? SourceImageFileStore().resolvedPath(for: storedPath)
     }
 
     var previewTitle: String {

@@ -2,9 +2,14 @@ import Foundation
 
 struct ProviderVisionAnalyzer: VisionAnalyzing {
     private let provider: any VisionAnalysisProviding
+    private let imagePayloadOptimizer: VisionImagePayloadOptimizer
 
-    init(provider: any VisionAnalysisProviding) {
+    init(
+        provider: any VisionAnalysisProviding,
+        imagePayloadOptimizer: VisionImagePayloadOptimizer = VisionImagePayloadOptimizer()
+    ) {
         self.provider = provider
+        self.imagePayloadOptimizer = imagePayloadOptimizer
     }
 
     func analyze(_ request: VisionAnalysisRequest) async throws -> VisionUnderstandingContext {
@@ -13,7 +18,7 @@ struct ProviderVisionAnalyzer: VisionAnalyzing {
         }
 
         let providerRequest = VisionProviderAnalysisRequest(
-            imageData: imageData,
+            imageData: imagePayloadOptimizer.optimizedImageData(from: imageData),
             selectedCardType: request.selectedCardType
         )
         let dto = try await provider.analyzeImage(providerRequest)
