@@ -7,6 +7,20 @@
 CaptureFlow is an open-source iOS app and reference architecture for turning screenshots into structured AI insight cards.
 
 <p align="center">
+  <a href="https://github.com/MikeChen1109/CaptureFlow/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MikeChen1109/CaptureFlow/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Swift 5" src="https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white">
+  <img alt="iOS 18+" src="https://img.shields.io/badge/iOS-18%2B-000000?logo=apple&logoColor=white">
+  <img alt="Xcode 26.3+" src="https://img.shields.io/badge/Xcode-26.3%2B-147EFB?logo=xcode&logoColor=white">
+  <img alt="SwiftUI" src="https://img.shields.io/badge/SwiftUI-interface-0A84FF">
+  <img alt="SwiftData" src="https://img.shields.io/badge/SwiftData-persistence-5E5CE6">
+  <img alt="OpenAI" src="https://img.shields.io/badge/OpenAI-vision%20%2B%20generation-412991?logo=openai&logoColor=white">
+  <img alt="Apple Foundation Models" src="https://img.shields.io/badge/Apple%20Foundation%20Models-iOS%2026%2B-000000?logo=apple&logoColor=white">
+  <img alt="EventKit" src="https://img.shields.io/badge/EventKit-Reminders%20%2B%20Calendar-34C759">
+  <img alt="Markdown Export" src="https://img.shields.io/badge/Markdown-export-000000?logo=markdown&logoColor=white">
+  <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-lightgrey">
+</p>
+
+<p align="center">
   <img src="docs/assets/captureflow-demo.png" alt="CaptureFlow demo screen" width="320">
 </p>
 

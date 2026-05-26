@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT: CaptureFlow.xcodeproj
+  SCHEME: CaptureFlow
+  CONFIGURATION: Debug
+  DERIVED_DATA_PATH: DerivedData
+  RESULT_BUNDLE_PATH: TestResults/CaptureFlow.xcresult
+  SIMULATOR_DESTINATION: platform=iOS Simulator,name=iPhone 17,arch=arm64
+  XCODE_PATH: /Applications/Xcode_26.3.app
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+
+          if [ ! -d "$XCODE_PATH" ]; then
+            echo "Expected Xcode at $XCODE_PATH, but it was not found."
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Build
+        run: |
+          set -euo pipefail
+
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Test
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$(dirname "$RESULT_BUNDLE_PATH")"
+
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination "$SIMULATOR_DESTINATION" \
+            -only-testing:CaptureFlowTests \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -resultBundlePath "$RESULT_BUNDLE_PATH" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: captureflow-xcresult
+          path: ${{ env.RESULT_BUNDLE_PATH }}
+          if-no-files-found: ignore
+          retention-days: 14
