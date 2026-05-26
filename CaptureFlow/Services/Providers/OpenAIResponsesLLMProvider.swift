@@ -61,22 +61,6 @@ struct OpenAIResponsesLLMProvider: LLMProviding {
         switch input {
         case .text(let text):
             return text
-        case .image(let data, let mimeType, let prompt):
-            return [
-                [
-                    "role": "user",
-                    "content": [
-                        [
-                            "type": "input_text",
-                            "text": prompt
-                        ],
-                        [
-                            "type": "input_image",
-                            "image_url": "data:\(mimeType);base64,\(data.base64EncodedString())"
-                        ]
-                    ]
-                ]
-            ]
         }
     }
 

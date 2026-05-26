@@ -18,19 +18,6 @@ struct SourceImageFileStore: Sendable {
         .appendingPathComponent("CaptureFlow", isDirectory: true)
     }
 
-    func saveImageData(_ data: Data) throws -> String {
-        let directory = sourceImagesDirectory
-        try fileManager.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true
-        )
-
-        let filename = "\(UUID().uuidString).jpg"
-        let fileURL = directory.appendingPathComponent(filename)
-        try data.write(to: fileURL, options: .atomic)
-        return "SourceImages/\(filename)"
-    }
-
     func resolvedPath(for storedPath: String?) -> String? {
         guard let storedPath,
               !storedPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

@@ -19,7 +19,7 @@ The maintainer will confirm receipt, assess impact, and coordinate a fix before 
 
 ## Current Security Boundaries
 
-- Captured images are copied into on-device app support storage when possible.
+- Captured images are kept in memory for analysis and are not copied into app support storage for new cards.
 - EventKit access is limited to creating reminders and calendar events from user-approved actions.
 - Provider-backed vision can send image data to the configured external LLM provider.
 - Provider-backed generation can send screenshot-derived text context to the configured external LLM provider unless the user selects Apple Foundation Models on a supported iOS 26+ Apple Intelligence device.

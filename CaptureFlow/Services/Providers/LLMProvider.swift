@@ -7,7 +7,6 @@ protocol LLMProviding: Sendable {
 struct LLMRequest: Sendable {
     enum Input: Sendable {
         case text(String)
-        case image(data: Data, mimeType: String, prompt: String)
     }
 
     var model: String

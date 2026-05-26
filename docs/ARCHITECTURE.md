@@ -1,6 +1,6 @@
 # Architecture
 
-CaptureFlow uses a single Swift module with feature-oriented folders and protocol-based service boundaries. Captured images are copied into app support storage and generated insights are persisted on device, while AI-backed analysis and generation can send user content to the configured provider. External systems are reached through narrow service protocols.
+CaptureFlow uses a single Swift module with feature-oriented folders and protocol-based service boundaries. Captured images are kept in memory for the current analysis request, generated insights are persisted on device, and AI-backed analysis and generation can send user content to the configured provider. External systems are reached through narrow service protocols.
 
 ## Layout
 
@@ -58,7 +58,7 @@ CaptureFlow/
 : App entry point, root navigation, dependency composition, and route definitions.
 
 `Data`
-: Persistence boundaries and storage implementations. `CardRepository` is the abstraction used by feature view models. `SwiftDataCardRepository` is the production local implementation, `InMemoryCardRepository` is retained for previews/tests/fallbacks, and `SourceImageFileStore` stores imported source images under app support storage.
+: Persistence boundaries and storage implementations. `CardRepository` is the abstraction used by feature view models. `SwiftDataCardRepository` is the production local implementation, and `InMemoryCardRepository` is retained for previews/tests/fallbacks.
 
 `DesignSystem`
 : Reusable SwiftUI components, view modifiers, typography, spacing, color, and radius tokens.
@@ -80,7 +80,7 @@ Persisted card metadata such as custom fields belongs here; UI affordances for t
 
 1. `ContentView` owns the root `NavigationStack`, home state, inbox state, settings navigation, and the full-screen new-card flow.
 2. `NewCardFlowView` starts at `CapturePreviewView`, where a user captures an image or imports one from Photos.
-3. `CaptureViewModel` keeps the selected image data and saves a JPEG copy through `SourceImageFileStore` when possible.
+3. `CaptureViewModel` keeps the selected image data in memory for the current analysis request and records Photos asset identifiers when available.
 4. `CardResultGenerationView` runs the pipeline: `AnalysisViewModel` calls `VisionAnalyzing`, then `CardGenerating` produces a `GeneratedInsightCard` and an `ActionCard`.
 5. `CardResultViewModel` lets the user review generated sections, add custom fields, copy Markdown, create supported external actions, and save the result.
 6. Saved cards become `SavedInsightCard` records through `CardRepository`.
@@ -107,7 +107,6 @@ Persisted card metadata such as custom fields belongs here; UI affordances for t
 - `MockVisionAnalyzer` for tests and local fallback use
 - `MockCardGenerator` fallback
 - `SwiftDataCardRepository` for saved insights
-- `SourceImageFileStore` for copied source images
 - `EventKitReminderCreator`
 - `EventKitCalendarCreator`
 
@@ -188,9 +187,9 @@ Repository rules:
 - `update(_:)` refreshes `updatedAt`.
 - `archiveCard(id:)` marks a card `.archived`; normal fetches exclude archived cards unless requested.
 - `deleteCard(id:)` removes the SwiftData record.
-- `reset()` deletes all saved insight records. It does not currently delete copied source-image files.
+- `reset()` deletes all saved insight records.
 
-Source images are not stored in SwiftData. `SourceImageFileStore` writes JPEG files under `Application Support/CaptureFlow/SourceImages` and stores relative paths such as `SourceImages/<uuid>.jpg` on `CardSourceImage`.
+Source images are not copied into app support storage for new cards. Photo-library images keep the Photos local asset identifier on `CardSourceImage` so previews can be attempted while the original asset still exists. `SourceImageFileStore` remains only for resolving legacy cards that already contain local source-image paths.
 
 ## External Actions
 

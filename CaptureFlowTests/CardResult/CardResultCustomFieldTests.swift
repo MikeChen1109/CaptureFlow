@@ -415,7 +415,7 @@ struct CardResultCustomFieldTests {
         #expect(!viewModel.canCreateCalendar)
     }
 
-    @Test @MainActor func inboxSearchDebouncesAndSearchesAcrossFilters() async throws {
+    @Test @MainActor func inboxSearchImmediatelySearchesAcrossFilters() async throws {
         let activeCard = savedInsightCard(title: "Active launch plan", status: .saved)
         let archivedCard = savedInsightCard(title: "Vendor renewal contract", status: .archived)
         let repository = InMemoryCardRepository(seedCards: [activeCard, archivedCard])
@@ -426,10 +426,11 @@ struct CardResultCustomFieldTests {
         #expect(viewModel.filteredCards.map(\.id) == [activeCard.id])
 
         viewModel.searchText = "vendor"
-        #expect(viewModel.filteredCards.map(\.id) == [activeCard.id])
-
-        try await Task.sleep(nanoseconds: 350_000_000)
         #expect(viewModel.filteredCards.map(\.id) == [archivedCard.id])
+
+        viewModel.searchText = "jh"
+        #expect(viewModel.filteredCards.isEmpty)
+        #expect(viewModel.emptyStateTitle == "No matching insights")
 
         viewModel.searchText = ""
         #expect(viewModel.filteredCards.map(\.id) == [activeCard.id])
@@ -479,15 +480,18 @@ struct CardResultCustomFieldTests {
         #expect(try await repository.fetchCard(id: card.id) == nil)
     }
 
-    @Test func sourceImageFileStoreSavesRelativePathAndResolvesIt() throws {
+    @Test func sourceImageFileStoreResolvesRelativePath() throws {
         let baseDirectory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: baseDirectory) }
 
         let store = try SourceImageFileStore(baseDirectory: baseDirectory)
-        let storedPath = try store.saveImageData(Data("image-data".utf8))
+        let imageDirectory = baseDirectory.appendingPathComponent("SourceImages", isDirectory: true)
+        try FileManager.default.createDirectory(at: imageDirectory, withIntermediateDirectories: true)
+        try Data("image-data".utf8).write(to: imageDirectory.appendingPathComponent("source.jpg"))
+
+        let storedPath = "SourceImages/source.jpg"
         let resolvedPath = store.resolvedPath(for: storedPath)
 
-        #expect(storedPath.hasPrefix("SourceImages/"))
         #expect(resolvedPath != nil)
         #expect(FileManager.default.fileExists(atPath: resolvedPath ?? ""))
     }
