@@ -142,14 +142,34 @@ If your simulator name differs, replace the destination with an installed simula
 
 ## Roadmap
 
-- [ ] OCR-only baseline mode
-- [ ] More card templates
-- [ ] Prompt customization
-- [ ] More export options
-- [ ] macOS support
-- [ ] Multiple screenshot support
-- [ ] Partial generation support
-- [ ] More useful actions
+### Near-term
+
+- [ ] OCR-only baseline mode for text extraction and basic note cards without an external vision provider
+- [ ] User-facing prompt presets for tone, detail level, and preferred card style
+- [ ] More export formats, starting with plain text, JSON, and iOS share sheet support
+- [ ] Regenerate or rewrite individual generated sections
+- [ ] Better failure recovery, including retrying analysis or generation separately
+- [ ] Local thumbnail retention option for saved source images
+
+### Card and action expansion
+
+- [ ] More card templates, starting with receipt, contact, article, product, and travel cards
+- [ ] More concrete actions, such as create contact, open detected URL, create checklist reminder, and share card
+- [ ] Confidence and evidence review UI for checking what the AI used before creating external actions
+- [ ] Tags, collections, and stronger inbox organization for long-term saved card management
+
+### Integrations
+
+- [ ] Share Extension for sending screenshots and images into CaptureFlow from Photos, Safari, and other apps
+- [ ] App Intents and Shortcuts, such as analyzing the latest screenshot or creating a reminder from a captured image
+- [ ] API key and provider settings UI backed by Keychain storage
+- [ ] Privacy mode controls for choosing when content may be sent to an external AI provider
+
+### Architecture-heavy milestones
+
+- [ ] Multiple screenshot support across capture, analysis, persistence, and saved source metadata
+- [ ] True partial generation support with streamed section-level generation events
+- [ ] macOS or Mac Catalyst support with platform-specific capture, image preview, clipboard, and EventKit adapters
 
 ## Open Source
 
